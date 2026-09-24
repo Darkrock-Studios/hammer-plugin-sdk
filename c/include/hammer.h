@@ -38,7 +38,7 @@ void hammer_alloc_reset(void);
 // Runs a Hammer operation the manifest has permission for. input_json is the operation's input
 // object, e.g. {"project":"My Novel","id":12}. Returns a handle to the reply, one of:
 //   {"output": {...}}
-//   {"error": {"kind": "NotFound" | "InvalidInput" | "PermissionDenied", "message": "..."}}
+//   {"error": {"kind": "NotFound" | "InvalidInput" | "PermissionDenied" | "Failed", "message": "..."}}
 ExtismHandle hammer_call(const char *operation, const char *input_json);
 
 #ifdef HAMMER_IMPLEMENTATION
