@@ -1,7 +1,8 @@
 // Hammer's plugin kit for C, on top of Extism's C PDK (extism-pdk.h).
 //
 // In exactly one source file, define HAMMER_IMPLEMENTATION before including this header. It also
-// defines EXTISM_IMPLEMENTATION, so don't define that yourself.
+// defines EXTISM_IMPLEMENTATION, so don't define that yourself. Without EXTISM_USE_LIBC, it also
+// provides the memset, memcpy, and strlen that clang expects even from freestanding code.
 //
 // Exports a plugin can provide:
 //   export  Renders every export format in the manifest. Input is JSON:
@@ -30,6 +31,28 @@ extern ExtismHandle hammer_dispatch(ExtismHandle request);
 ExtismHandle hammer_call(const char *operation, const char *input_json);
 
 #ifdef HAMMER_IMPLEMENTATION
+#ifndef EXTISM_USE_LIBC
+// Without libc, clang still emits calls to these for plain loops and struct copies.
+void *memset(void *dest, int c, size_t n) {
+  unsigned char *d = dest;
+  while (n--) *d++ = (unsigned char)c;
+  return dest;
+}
+
+void *memcpy(void *dest, const void *src, size_t n) {
+  unsigned char *d = dest;
+  const unsigned char *s = src;
+  while (n--) *d++ = *s++;
+  return dest;
+}
+
+size_t strlen(const char *s) {
+  const char *end = s;
+  while (*end) end++;
+  return (size_t)(end - s);
+}
+#endif // EXTISM_USE_LIBC
+
 ExtismHandle hammer_call(const char *operation, const char *input_json) {
   static const char head[] = "{\"operation\":\"";
   static const char middle[] = "\",\"input\":";
