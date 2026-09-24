@@ -6,9 +6,14 @@
 //
 // Exports a plugin can provide:
 //   export  Renders every export format in the manifest. Input is JSON:
-//           {"format": "<id>", "projectName": "...", "language": "en",
-//            "chapters": [{"name": "...", "scenes": ["<markdown>", ...]}]}
-//           Output is the file's bytes.
+//           {"format": "<id>", "projectName": "...", "language": "en", "topLevelAsChapters": true,
+//            "chapters": [{"name": "...", "scenes": ["<markdown>", ...], "prose": []}],
+//            "settings": {"<key>": <value>, ...}}
+//           A format whose manifest entry says `input = "prose"` gets each scene in `prose`
+//           instead, as the host parsed it: a list of blocks, each with a "type" of paragraph,
+//           blank, heading, list, quote, code, rule, or table. Text comes in spans:
+//           {"text": "...", "italic": true}, with bold, strikethrough, code, and link likewise
+//           left out when unset. hammer_json.h reads either form. Output is the file's bytes.
 #ifndef HAMMER_H
 #define HAMMER_H
 
@@ -23,6 +28,12 @@
 // Raw dispatch: request is a handle to {"operation": "<name>", "input": {...}}.
 EXTISM_IMPORT_USER("hammer_dispatch")
 extern ExtismHandle hammer_dispatch(ExtismHandle request);
+
+// Scratch memory from the top of the module's linear memory, grown as needed. Nothing is freed on its
+// own: call hammer_alloc_reset() at the start of each export to reuse it. Returns 0 when the host's
+// memory limit is reached.
+void *hammer_alloc(uint64_t size);
+void hammer_alloc_reset(void);
 
 // Runs a Hammer operation the manifest has permission for. input_json is the operation's input
 // object, e.g. {"project":"My Novel","id":12}. Returns a handle to the reply, one of:
@@ -52,6 +63,21 @@ size_t strlen(const char *s) {
   return (size_t)(end - s);
 }
 #endif // EXTISM_USE_LIBC
+
+extern unsigned char __heap_base;
+static uintptr_t hammer_heap_top;
+
+void hammer_alloc_reset(void) { hammer_heap_top = (uintptr_t)&__heap_base; }
+
+void *hammer_alloc(uint64_t size) {
+  if (hammer_heap_top == 0) hammer_alloc_reset();
+  uintptr_t at = (hammer_heap_top + 7) & ~(uintptr_t)7;
+  uint64_t end = (uint64_t)at + size;
+  uint64_t have = (uint64_t)__builtin_wasm_memory_size(0) * 65536;
+  if (end > have && __builtin_wasm_memory_grow(0, (size_t)((end - have + 65535) / 65536)) == (size_t)-1) return 0;
+  hammer_heap_top = (uintptr_t)end;
+  return (void *)at;
+}
 
 ExtismHandle hammer_call(const char *operation, const char *input_json) {
   static const char head[] = "{\"operation\":\"";
