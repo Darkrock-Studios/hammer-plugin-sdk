@@ -16,7 +16,8 @@
 //           left out when unset. hammer_json.h reads either form. Output is the file's bytes.
 //   action  Runs a project action the manifest declares under [[actions]]. Input is JSON:
 //           {"action": "<name>", "project": "<name>", "settings": {...}}. Output, if any, is
-//           shown to the user when it finishes.
+//           shown to the user when it finishes: briefly as a message, or, when the action sets
+//           `output = "document"`, as markdown in a dialog the user can copy or save as a note.
 //   command Answers one line of standard input to a command the manifest declares under
 //           [[commands]]. Input is JSON: {"command": "<name>", "args": [...], "settings": {...},
 //           "line": "..."}. Output, if any, is written as one line of standard output.
