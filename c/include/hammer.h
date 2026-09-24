@@ -35,6 +35,23 @@
 EXTISM_IMPORT_USER("hammer_dispatch")
 extern ExtismHandle hammer_dispatch(ExtismHandle request);
 
+// The plugin's own cache, kept by Hammer between calls and runs. Keys and values are bytes. Hammer
+// may drop any value at any time: it keeps the most recently written, up to a total size, and clears
+// them all when the plugin is installed again or uninstalled. Nothing in it is synced or backed up.
+// A call still running on the old version during an install may write after the clear, so put a
+// version in keys whose values' format may change.
+#define HAMMER_CACHE_MAX_KEY 1024
+#define HAMMER_CACHE_MAX_VALUE (1024 * 1024)
+
+// Raw cache access: a handle to the key's value, or 0 when it has none.
+EXTISM_IMPORT_USER("hammer_cache_get")
+extern ExtismHandle hammer_cache_get(ExtismHandle key);
+
+// Raw cache access: stores value under key, or removes the key when value is 0, as it is for an empty
+// value. A key or value over its limit ends the call with an error.
+EXTISM_IMPORT_USER("hammer_cache_set")
+extern void hammer_cache_set(ExtismHandle key, ExtismHandle value);
+
 // Scratch memory from the top of the module's linear memory, grown as needed. Nothing is freed on its
 // own: call hammer_alloc_reset() at the start of each export to reuse it. Returns 0 when the host's
 // memory limit is reached.
@@ -46,6 +63,13 @@ void hammer_alloc_reset(void);
 //   {"output": {...}}
 //   {"error": {"kind": "NotFound" | "InvalidInput" | "PermissionDenied" | "Failed", "message": "..."}}
 ExtismHandle hammer_call(const char *operation, const char *input_json);
+
+// A handle to the value cached under key, or 0 when there is none. Free it with extism_free.
+ExtismHandle hammer_cache_read(const void *key, uint64_t key_length);
+
+// Caches length bytes of value under key; an empty value removes it. Returns 0, storing nothing, when
+// either is over its limit.
+int hammer_cache_write(const void *key, uint64_t key_length, const void *value, uint64_t length);
 
 #ifdef HAMMER_IMPLEMENTATION
 #ifndef EXTISM_USE_LIBC
@@ -108,6 +132,24 @@ ExtismHandle hammer_call(const char *operation, const char *input_json) {
   ExtismHandle reply = hammer_dispatch(request);
   extism_free(request);
   return reply;
+}
+
+ExtismHandle hammer_cache_read(const void *key, uint64_t key_length) {
+  if (key_length > HAMMER_CACHE_MAX_KEY) return 0;
+  ExtismHandle key_handle = extism_alloc_buf(key, key_length);
+  ExtismHandle value = hammer_cache_get(key_handle);
+  extism_free(key_handle);
+  return value;
+}
+
+int hammer_cache_write(const void *key, uint64_t key_length, const void *value, uint64_t length) {
+  if (key_length > HAMMER_CACHE_MAX_KEY || length > HAMMER_CACHE_MAX_VALUE) return 0;
+  ExtismHandle key_handle = extism_alloc_buf(key, key_length);
+  ExtismHandle value_handle = extism_alloc_buf(value, length);
+  hammer_cache_set(key_handle, value_handle);
+  extism_free(key_handle);
+  extism_free(value_handle);
+  return 1;
 }
 #endif // HAMMER_IMPLEMENTATION
 
