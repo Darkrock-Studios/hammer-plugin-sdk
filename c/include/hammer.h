@@ -21,10 +21,16 @@
 //           blank, heading, list, quote, code, rule, or table. Text comes in spans:
 //           {"text": "...", "italic": true}, with bold, strikethrough, code, and link likewise
 //           left out when unset. hammer_json.h reads either form. Output is the file's bytes.
-//   action  Runs a project action the manifest declares under [[actions]]. Input is JSON:
-//           {"action": "<name>", "project": "<name>", "settings": {...}}. Output, if any, is
-//           shown to the user when it finishes: briefly as a message, or, when the action sets
-//           `output = "document"`, as markdown in a dialog the user can copy or save as a note.
+//   action  Runs an action the manifest declares under [[actions]], from the menu of a screen in
+//           its `places` (project, scene, note, entry, event). Input is JSON:
+//           {"action": "<name>", "project": "<name>", "settings": {...}, "input": {...},
+//            "context": {"place": "scene", "id": 12}, "button": null}. "input" has a value for each
+//           of the action's [[actions.field]]s, and "context" the screen and the id of the item it
+//           shows (null on the project's). Output, if any, is shown when it finishes: `message` as a
+//           brief line, `document` as markdown in a dialog, or `interactive` as JSON
+//           {"markdown": "...", "buttons": [{"id": "...", "label": "..."}], "message": "..."}, where
+//           pressing a button calls the action again with its id as "button". Report progress on a
+//           long run with hammer_progress.
 //   command Answers one line of standard input to a command the manifest declares under
 //           [[commands]]. Input is JSON: {"command": "<name>", "args": [...], "settings": {...},
 //           "line": "..."}. Output, if any, is written as one line of standard output.
@@ -58,6 +64,11 @@
 #define HAMMER_OUT_OF_MEMORY "The plugin ran out of memory"
 #endif
 
+// Reports how far an action has got: fraction from 0 to 1, or negative when not known, and a line
+// saying what it is doing, or 0. Hammer shows it while the action runs. When the user has stopped the
+// run, the call does not return: the action ends there. Does nothing outside an action.
+void hammer_progress(double fraction, const char *message);
+
 // Scratch memory from the top of the module's linear memory, grown as needed. Nothing is freed on its
 // own: call hammer_alloc_reset() at the start of each export to reuse it. Returns 0 when the host's
 // memory limit is reached.
@@ -71,6 +82,10 @@ __attribute__((noreturn)) void hammer_fail(const char *message);
 void *hammer_must_alloc(uint64_t size);
 
 #ifndef HAMMER_NATIVE
+
+// Raw progress report: a handle to {"fraction": 0.5, "message": "..."}, either key optional.
+EXTISM_IMPORT_USER("hammer_progress")
+extern void hammer_progress_report(ExtismHandle report);
 
 // Raw dispatch: request is a handle to {"operation": "<name>", "input": {...}}.
 EXTISM_IMPORT_USER("hammer_dispatch")
@@ -134,6 +149,11 @@ void hammer_fail(const char *message) {
   fprintf(stderr, "hammer_fail: %s\n", message);
   abort();
 }
+
+void hammer_progress(double fraction, const char *message) {
+  (void)fraction;
+  (void)message;
+}
 #else
 void hammer_fail(const char *message) {
   extism_error_set_buf_from_sz(message);
@@ -175,6 +195,39 @@ void *hammer_alloc(uint64_t size) {
   if (end > have && __builtin_wasm_memory_grow(0, (size_t)((end - have + 65535) / 65536)) == (size_t)-1) return 0;
   hammer_heap_top = (uintptr_t)end;
   return (void *)at;
+}
+
+void hammer_progress(double fraction, const char *message) {
+  // Built on the stack, so reports use none of hammer_alloc's memory; a long message is cut.
+  char report[512];
+  uint64_t n = 0;
+  static const char head[] = "{\"fraction\":";
+  for (const char *c = head; *c; c++) report[n++] = *c;
+  if (!(fraction >= 0)) { // negative, or NaN
+    for (const char *c = "null"; *c; c++) report[n++] = *c;
+  } else {
+    uint32_t thousandths = fraction >= 1 ? 1000 : (uint32_t)(fraction * 1000);
+    report[n++] = (char)('0' + thousandths / 1000);
+    report[n++] = '.';
+    report[n++] = (char)('0' + thousandths / 100 % 10);
+    report[n++] = (char)('0' + thousandths / 10 % 10);
+    report[n++] = (char)('0' + thousandths % 10);
+  }
+  if (message) {
+    static const char key[] = ",\"message\":\"";
+    for (const char *c = key; *c; c++) report[n++] = *c;
+    for (const char *c = message; *c && n < sizeof(report) - 8; c++) {
+      unsigned char b = (unsigned char)*c;
+      if (b < 0x20) continue;
+      if (b == '"' || b == '\\') report[n++] = '\\';
+      report[n++] = (char)b;
+    }
+    report[n++] = '"';
+  }
+  report[n++] = '}';
+  ExtismHandle handle = extism_alloc_buf(report, n);
+  hammer_progress_report(handle);
+  extism_free(handle);
 }
 
 ExtismHandle hammer_call(const char *operation, const char *input_json) {
