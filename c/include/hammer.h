@@ -4,6 +4,13 @@
 // defines EXTISM_IMPLEMENTATION, so don't define that yourself. Without EXTISM_USE_LIBC, it also
 // provides the memset, memcpy, and strlen that clang expects even from freestanding code.
 //
+// With HAMMER_NATIVE defined, a plugin compiles for the machine building it instead, with libc and
+// without Extism, so its logic can be unit tested natively (see hammer_test.h and c/test.sh). Only
+// memory, hammer_fail, and what builds on them are there: no operations or cache.
+//
+// The rest of the kit: hammer_json.h reads JSON, hammer_out.h writes output, hammer_text.h finds
+// words in UTF-8 text, and hammer_diagnose.h does a `diagnose` export's reading and writing.
+//
 // Exports a plugin can provide:
 //   export  Renders every export format in the manifest. Input is JSON:
 //           {"format": "<id>", "projectName": "...", "language": "en", "topLevelAsChapters": true,
@@ -31,13 +38,39 @@
 #ifndef HAMMER_H
 #define HAMMER_H
 
+#ifdef HAMMER_NATIVE
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#else
 #ifdef HAMMER_IMPLEMENTATION
 #define EXTISM_IMPLEMENTATION
 #endif
 #include "extism-pdk.h"
+#endif
 
 // The host API version this header targets; the manifest's `api` must match.
 #define HAMMER_API_VERSION 1
+
+// What hammer_must_alloc reports; define it before including this header to say it for your plugin.
+#ifndef HAMMER_OUT_OF_MEMORY
+#define HAMMER_OUT_OF_MEMORY "The plugin ran out of memory"
+#endif
+
+// Scratch memory from the top of the module's linear memory, grown as needed. Nothing is freed on its
+// own: call hammer_alloc_reset() at the start of each export to reuse it. Returns 0 when the host's
+// memory limit is reached.
+void *hammer_alloc(uint64_t size);
+void hammer_alloc_reset(void);
+
+// Ends the call with message as its error.
+__attribute__((noreturn)) void hammer_fail(const char *message);
+
+// hammer_alloc, or hammer_fail with HAMMER_OUT_OF_MEMORY.
+void *hammer_must_alloc(uint64_t size);
+
+#ifndef HAMMER_NATIVE
 
 // Raw dispatch: request is a handle to {"operation": "<name>", "input": {...}}.
 EXTISM_IMPORT_USER("hammer_dispatch")
@@ -60,12 +93,6 @@ extern ExtismHandle hammer_cache_get(ExtismHandle key);
 EXTISM_IMPORT_USER("hammer_cache_set")
 extern void hammer_cache_set(ExtismHandle key, ExtismHandle value);
 
-// Scratch memory from the top of the module's linear memory, grown as needed. Nothing is freed on its
-// own: call hammer_alloc_reset() at the start of each export to reuse it. Returns 0 when the host's
-// memory limit is reached.
-void *hammer_alloc(uint64_t size);
-void hammer_alloc_reset(void);
-
 // Runs a Hammer operation the manifest has permission for. input_json is the operation's input
 // object, e.g. {"project":"My Novel","id":12}. Returns a handle to the reply, one of:
 //   {"output": {...}}
@@ -78,8 +105,41 @@ ExtismHandle hammer_cache_read(const void *key, uint64_t key_length);
 // Caches length bytes of value under key; an empty value removes it. Returns 0, storing nothing, when
 // either is over its limit.
 int hammer_cache_write(const void *key, uint64_t key_length, const void *value, uint64_t length);
+#endif // HAMMER_NATIVE
 
 #ifdef HAMMER_IMPLEMENTATION
+void *hammer_must_alloc(uint64_t size) {
+  void *memory = hammer_alloc(size);
+  if (!memory) hammer_fail(HAMMER_OUT_OF_MEMORY);
+  return memory;
+}
+
+#ifdef HAMMER_NATIVE
+// As much as a plugin gets by default.
+#define HAMMER_NATIVE_MEMORY (64ull * 1024 * 1024)
+static unsigned char *hammer_native_heap;
+static uint64_t hammer_native_used;
+
+void hammer_alloc_reset(void) { hammer_native_used = 0; }
+
+void *hammer_alloc(uint64_t size) {
+  if (!hammer_native_heap) hammer_native_heap = malloc(HAMMER_NATIVE_MEMORY);
+  uint64_t at = (hammer_native_used + 7) & ~7ull;
+  if (!hammer_native_heap || size > HAMMER_NATIVE_MEMORY - at) return 0;
+  hammer_native_used = at + size;
+  return hammer_native_heap + at;
+}
+
+void hammer_fail(const char *message) {
+  fprintf(stderr, "hammer_fail: %s\n", message);
+  abort();
+}
+#else
+void hammer_fail(const char *message) {
+  extism_error_set_buf_from_sz(message);
+  __builtin_trap();
+}
+
 #ifndef EXTISM_USE_LIBC
 // Without libc, clang still emits calls to these for plain loops and struct copies.
 void *memset(void *dest, int c, size_t n) {
@@ -159,6 +219,7 @@ int hammer_cache_write(const void *key, uint64_t key_length, const void *value, 
   extism_free(value_handle);
   return 1;
 }
+#endif // HAMMER_NATIVE
 #endif // HAMMER_IMPLEMENTATION
 
 #endif // HAMMER_H
