@@ -30,6 +30,15 @@ pub struct Diagnostic {
     pub start: usize,
     pub end: usize,
     pub message: String,
-    /// Replacements for the range, offered to the user.
-    pub fixes: Vec<String>,
+    /// Offered to the user.
+    pub fixes: Vec<Fix>,
+}
+
+/// A replacement for a [Diagnostic]'s range, shown to the user as itself, or as a label where the
+/// replacement alone would not say what it does, such as removing a word.
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum Fix {
+    Replace(String),
+    Labelled { replacement: String, label: String },
 }

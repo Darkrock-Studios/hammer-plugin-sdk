@@ -25,7 +25,9 @@
 //           [[diagnostics]]. Input is JSON: {"diagnostics": "<name>", "paragraphs": ["...", ...],
 //           "language": "en" or null, "settings": {...}}, paragraphs as plain text. Output is
 //           {"diagnostics": [{"paragraph": 0, "start": 4, "end": 11, "message": "...",
-//           "fixes": ["..."]}]}, start and end being UTF-8 byte offsets into the paragraph.
+//           "fixes": ["..."]}]}, start and end being UTF-8 byte offsets into the paragraph. A fix is a
+//           replacement, shown as itself, or {"replacement": "", "label": "Remove “the”"} where the
+//           replacement alone would not say what it does.
 #ifndef HAMMER_H
 #define HAMMER_H
 
