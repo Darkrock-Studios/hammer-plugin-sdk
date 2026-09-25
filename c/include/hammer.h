@@ -21,6 +21,11 @@
 //   command Answers one line of standard input to a command the manifest declares under
 //           [[commands]]. Input is JSON: {"command": "<name>", "args": [...], "settings": {...},
 //           "line": "..."}. Output, if any, is written as one line of standard output.
+//   diagnose Checks paragraphs the editor sends for a check the manifest declares under
+//           [[diagnostics]]. Input is JSON: {"diagnostics": "<name>", "paragraphs": ["...", ...],
+//           "language": "en" or null, "settings": {...}}, paragraphs as plain text. Output is
+//           {"diagnostics": [{"paragraph": 0, "start": 4, "end": 11, "message": "...",
+//           "fixes": ["..."]}]}, start and end being UTF-8 byte offsets into the paragraph.
 #ifndef HAMMER_H
 #define HAMMER_H
 
