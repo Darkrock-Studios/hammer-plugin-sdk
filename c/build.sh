@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 plugins="$*"
-[ -n "$plugins" ] || plugins="upper wordfreq style plaintext grammar"
+[ -n "$plugins" ] || plugins="upper wordfreq style plaintext simple-grammar"
 for plugin in $plugins; do
 	mkdir -p "$plugin/build"
 	clang --target=wasm32-unknown-unknown -O2 -nostdlib \

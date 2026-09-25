@@ -1,7 +1,7 @@
 // Native unit tests for Hammer plugins. A plugin's test.c includes its source, then this header, and
 // c/test.sh builds it with HAMMER_NATIVE and runs it:
 //
-//   #include "grammar.c"
+//   #include "simple-grammar.c"
 //   #include "../include/hammer_test.h"
 //
 //   int main(void) {
