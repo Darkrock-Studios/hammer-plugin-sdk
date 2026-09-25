@@ -225,4 +225,19 @@ static inline uint64_t hammer_json_unescape(const char *raw, uint64_t raw_length
   return length;
 }
 
+// Finds key in the JSON object text, leaving json at its value for the readers above; 0 when the text
+// is not an object or has no such key.
+static inline int hammer_json_find(const char *object, uint64_t length, const char *key, HammerJson *json) {
+  if (!object) return 0;
+  hammer_json_init(json, object, length);
+  const char *found;
+  uint64_t found_length;
+  if (!hammer_json_enter_object(json)) return 0;
+  while (hammer_json_next_key(json, &found, &found_length)) {
+    if (hammer_json_key_is(found, found_length, key)) return 1;
+    hammer_json_skip(json);
+  }
+  return 0;
+}
+
 #endif // HAMMER_JSON_H

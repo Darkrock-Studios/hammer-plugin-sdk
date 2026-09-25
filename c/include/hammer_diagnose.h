@@ -22,6 +22,9 @@ typedef struct {
   HammerText language;
   // The settings object's JSON; data is 0 when there is none.
   HammerText settings;
+  // The UI's BCP 47 tag, for writing messages in the user's language; data is 0 when unknown. Not the
+  // project's language, which is what the text is written in.
+  HammerText locale;
 } HammerDiagnoseRequest;
 
 // A fix: replacement text for the diagnostic's range, shown as itself, or as label when given.
@@ -50,16 +53,7 @@ const char *hammer_diagnose_run(const char *input, uint64_t size, uint64_t *repl
 
 // Finds a setting's value in the request, for hammer_json to read; 0 when it's not there.
 static inline int hammer_setting(const HammerDiagnoseRequest *request, const char *key, HammerJson *json) {
-  if (!request->settings.data) return 0;
-  hammer_json_init(json, request->settings.data, request->settings.length);
-  const char *found;
-  uint64_t found_length;
-  if (!hammer_json_enter_object(json)) return 0;
-  while (hammer_json_next_key(json, &found, &found_length)) {
-    if (hammer_json_key_is(found, found_length, key)) return 1;
-    hammer_json_skip(json);
-  }
-  return 0;
+  return hammer_json_find(request->settings.data, request->settings.length, key, json);
 }
 
 static inline int hammer_setting_bool(const HammerDiagnoseRequest *request, const char *key, int fallback) {
@@ -125,7 +119,7 @@ const char *hammer_diagnose_run(const char *input, uint64_t size, uint64_t *repl
   hammer_diagnose_reported = 0;
 
   // Found before the paragraphs are checked, since keys may come in any order.
-  HammerDiagnoseRequest request = {{0}, {0}, {0}};
+  HammerDiagnoseRequest request = {{0}, {0}, {0}, {0}};
   HammerJson json;
   hammer_json_init(&json, input, size);
   const char *key;
@@ -137,6 +131,8 @@ const char *hammer_diagnose_run(const char *input, uint64_t size, uint64_t *repl
         hammer_json_string(&json, &request.name.data, &request.name.length);
       } else if (hammer_json_key_is(key, key_length, "language") && hammer_json_peek(&json) == '"') {
         hammer_json_string(&json, &request.language.data, &request.language.length);
+      } else if (hammer_json_key_is(key, key_length, "locale") && hammer_json_peek(&json) == '"') {
+        hammer_json_string(&json, &request.locale.data, &request.locale.length);
       } else if (hammer_json_key_is(key, key_length, "settings") && hammer_json_peek(&json) == '{') {
         uint64_t start = json.at;
         hammer_json_skip(&json);
