@@ -37,5 +37,8 @@ kotlin {
 		commonMain.dependencies {
 			api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 		}
+		jvmTest.dependencies {
+			implementation(kotlin("test"))
+		}
 	}
 }

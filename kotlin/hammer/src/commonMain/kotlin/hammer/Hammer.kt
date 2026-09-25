@@ -22,12 +22,51 @@ internal val json = Json { ignoreUnknownKeys = true }
 class OperationException(val kind: String, message: String) : Exception(message)
 
 /** Runs a Hammer operation the manifest has permission for; its output, or [OperationException]. */
-fun callJson(operation: String, input: JsonElement): JsonElement {
-	val request = buildJsonObject {
+fun callJson(operation: String, input: JsonElement): JsonElement = parseReply(dispatch(operation, input))
+
+/**
+ * [callJson]'s output as JSON text, unparsed: for passing a large output on as it is, which parsing
+ * and printing again would make slow.
+ */
+fun callJsonText(operation: String, input: JsonElement): String {
+	val reply = dispatch(operation, input)
+	return outputText(reply) ?: parseReply(reply).toString()
+}
+
+private fun dispatch(operation: String, input: JsonElement): String = host.dispatch(
+	buildJsonObject {
 		put("operation", operation)
 		put("input", input)
-	}
-	val reply = json.parseToJsonElement(host.dispatch(request.toString())).jsonObject
+	}.toString(),
+)
+
+/**
+ * The output in [reply] when it succeeded, without parsing it. A reply has one key, so the output runs
+ * from `"output":` to the object's closing brace.
+ */
+private fun outputText(reply: String): String? {
+	var at = skipSpace(reply, 0)
+	if (at == reply.length || reply[at] != '{') return null
+	at = skipSpace(reply, at + 1)
+	if (!reply.startsWith(OUTPUT_KEY, at)) return null
+	at = skipSpace(reply, at + OUTPUT_KEY.length)
+	if (at == reply.length || reply[at] != ':') return null
+	val start = skipSpace(reply, at + 1)
+	var end = reply.lastIndexOf('}')
+	while (end > start && reply[end - 1].isWhitespace()) end--
+	return if (end > start) reply.substring(start, end) else null
+}
+
+private fun skipSpace(text: String, from: Int): Int {
+	var at = from
+	while (at < text.length && text[at].isWhitespace()) at++
+	return at
+}
+
+private const val OUTPUT_KEY = "\"output\""
+
+private fun parseReply(text: String): JsonElement {
+	val reply = json.parseToJsonElement(text).jsonObject
 	reply["error"]?.jsonObject?.let { error ->
 		throw OperationException(
 			error["kind"]?.jsonPrimitive?.contentOrNull ?: "Failed",
