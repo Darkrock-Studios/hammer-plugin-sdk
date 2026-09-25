@@ -43,14 +43,14 @@ fun runBytes(body: () -> ByteArray): Int {
 /** The call's raw input. [exporter], [action], and [command] read it as their request. */
 fun input(): ByteArray = readKernel(inputLength().toInt(), ::inputLoadU64, ::inputLoadU8)
 
-fun inputText(): String = input().decodeToString()
+fun inputText(): String = readKernelText(inputLength().toInt(), ::inputLoadU64, ::inputLoadU8)
 
 private object ExtismHost : HammerHost {
 	override fun dispatch(request: String): String {
 		val requestHandle = toKernel(request.encodeToByteArray())
 		val replyHandle = hammerDispatch(requestHandle)
 		free(requestHandle)
-		return fromKernel(replyHandle).decodeToString().also { free(replyHandle) }
+		return fromKernelText(replyHandle).also { free(replyHandle) }
 	}
 
 	override fun cacheGet(key: ByteArray): ByteArray? {
@@ -173,3 +173,61 @@ private inline fun readKernel(size: Int, loadU64: (Long) -> Long, loadU8: (Long)
 
 private fun fromKernel(offset: Long): ByteArray =
 	readKernel(length(offset).toInt(), { loadU64(offset + it) }, { loadU8(offset + it) })
+
+private fun fromKernelText(offset: Long): String =
+	readKernelText(length(offset).toInt(), { loadU64(offset + it) }, { loadU8(offset + it) })
+
+// Kotlin's own UTF-8 decoding costs more than the copy itself in the interpreter, so text is read
+// from the kernel into a String directly, eight ASCII bytes at a time. Text that is not well-formed
+// goes through Kotlin's decoder, which replaces what is malformed.
+
+private const val HIGH_BITS = -0x7F7F7F7F7F7F7F80L // 0x8080808080808080
+
+private inline fun readKernelText(size: Int, loadU64: (Long) -> Long, loadU8: (Long) -> Int): String {
+	val chars = CharArray(size)
+	var count = 0
+	var codePoint = 0
+	var pending = 0
+	var least = 0
+	var wellFormed = true
+	var at = 0
+	read@ while (at < size) {
+		val whole = at + 8 <= size
+		var word = if (whole) loadU64(at.toLong()) else loadU8(at.toLong()).toLong()
+		if (whole && pending == 0 && word and HIGH_BITS == 0L) {
+			for (i in 0 until 8) {
+				chars[count++] = (word and 0x7F).toInt().toChar()
+				word = word ushr 8
+			}
+			at += 8
+			continue
+		}
+		for (i in 0 until if (whole) 8 else 1) {
+			val byte = (word and 0xFF).toInt()
+			word = word ushr 8
+			if (pending == 0) {
+				when {
+					byte < 0x80 -> chars[count++] = byte.toChar()
+					byte in 0xC2..0xDF -> { codePoint = byte and 0x1F; pending = 1; least = 0x80 }
+					byte in 0xE0..0xEF -> { codePoint = byte and 0x0F; pending = 2; least = 0x800 }
+					byte in 0xF0..0xF4 -> { codePoint = byte and 0x07; pending = 3; least = 0x10000 }
+					else -> { wellFormed = false; break@read }
+				}
+				continue
+			}
+			if (byte and 0xC0 != 0x80) { wellFormed = false; break@read }
+			codePoint = (codePoint shl 6) or (byte and 0x3F)
+			if (--pending > 0) continue
+			if (codePoint < least || codePoint in 0xD800..0xDFFF || codePoint > 0x10FFFF) { wellFormed = false; break@read }
+			if (codePoint < 0x10000) {
+				chars[count++] = codePoint.toChar()
+			} else {
+				chars[count++] = (0xD7C0 + (codePoint shr 10)).toChar()
+				chars[count++] = (0xDC00 or (codePoint and 0x3FF)).toChar()
+			}
+		}
+		at += if (whole) 8 else 1
+	}
+	if (!wellFormed || pending > 0) return readKernel(size, loadU64, loadU8).decodeToString()
+	return chars.concatToString(0, count)
+}
