@@ -1,5 +1,7 @@
 //! Hammer's plugin kit for Rust. See hammer-editor's docs/CLIENT-PLUGINS.md for the exports a plugin
-//! provides (`export`, `action`, `command`, `diagnose`) and the JSON each one is given.
+//! provides (`export`, `action`, `command`, `diagnose`) and the JSON each one is given, which always
+//! includes `locale`, the UI's language tag, for replying in the user's language. [action] and
+//! [diagnose] have types for theirs.
 //!
 //! An export is a `#[unsafe(no_mangle)] pub extern "C" fn` returning `i32`, whose body is [run]:
 //!
@@ -18,6 +20,7 @@ use serde::de::DeserializeOwned;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::Once;
 
+pub mod action;
 pub mod diagnose;
 
 /// The host API version this kit targets; the manifest's `api` must match.
@@ -53,6 +56,7 @@ unsafe extern "C" {
     fn hammer_dispatch(request: u64) -> u64;
     fn hammer_cache_get(key: u64) -> u64;
     fn hammer_cache_set(key: u64, value: u64);
+    fn hammer_progress(report: u64);
 }
 
 fn to_kernel(bytes: &[u8]) -> u64 {
@@ -210,6 +214,26 @@ pub fn cache_set(key: &str, value: &[u8]) -> bool {
         }
     }
     true
+}
+
+/// Reports how far an action has got: `fraction` from 0 to 1 when known, and a line saying what it is
+/// doing. Hammer shows it while the action runs. When the user has stopped the run, the call does not
+/// return: the action ends there.
+pub fn progress(fraction: Option<f64>, message: Option<&str>) {
+    #[derive(Serialize)]
+    struct Report<'a> {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        fraction: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        message: Option<&'a str>,
+    }
+    let fraction = fraction.map(|it| it.clamp(0.0, 1.0));
+    let Ok(report) = serde_json::to_vec(&Report { fraction, message }) else { return };
+    let handle = to_kernel(&report);
+    unsafe {
+        hammer_progress(handle);
+        free(handle);
+    }
 }
 
 /// The UTF-8 byte offset of each character of `text`, plus one for its end, so a range counted in

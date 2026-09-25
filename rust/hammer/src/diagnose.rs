@@ -19,6 +19,9 @@ pub struct Request {
     /// The plugin's declared settings, every key present.
     #[serde(default)]
     pub settings: Map<String, Value>,
+    /// The UI's BCP 47 tag, for messages in the user's language; not [Request::language], the text's.
+    #[serde(default)]
+    pub locale: Option<String>,
 }
 
 #[derive(Serialize, Default)]
