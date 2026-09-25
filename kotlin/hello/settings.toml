@@ -1,0 +1,5 @@
+[[setting]]
+key = "greeting"
+type = "string"
+label = "Greeting"
+default = "Hello"
