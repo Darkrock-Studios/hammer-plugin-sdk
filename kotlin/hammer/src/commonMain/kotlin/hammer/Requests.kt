@@ -22,6 +22,8 @@ class ExportRequest(
 	val topLevelAsChapters: Boolean = true,
 	val chapters: List<Chapter> = emptyList(),
 	override val settings: JsonObject = JsonObject(emptyMap()),
+	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
+	val locale: String? = null,
 ) : WithSettings {
 	/**
 	 * A chapter's scenes: as markdown in [scenes], or, for a format whose manifest entry sets
@@ -46,6 +48,8 @@ class ActionRequest(
 	val context: Context = Context(),
 	/** The id of the button pressed, for an interactive action's later calls; null on the first. */
 	val button: String? = null,
+	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
+	val locale: String? = null,
 ) : WithSettings {
 	/** The screen it was run from (`project`, `scene`, `note`, `entry`, or `event`) and the id of the item shown there. */
 	@Serializable
@@ -81,6 +85,8 @@ class DiagnoseRequest(
 	/** The project's BCP 47 tag, or null when it has none. */
 	val language: String? = null,
 	override val settings: JsonObject = JsonObject(emptyMap()),
+	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
+	val locale: String? = null,
 ) : WithSettings
 
 /**
@@ -105,4 +111,6 @@ class CommandRequest(
 	val args: List<String> = emptyList(),
 	val line: String,
 	override val settings: JsonObject = JsonObject(emptyMap()),
+	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
+	val locale: String? = null,
 ) : WithSettings

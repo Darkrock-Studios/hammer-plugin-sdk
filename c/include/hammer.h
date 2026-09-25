@@ -11,7 +11,9 @@
 // The rest of the kit: hammer_json.h reads JSON, hammer_out.h writes output, hammer_text.h finds
 // words in UTF-8 text, and hammer_diagnose.h does a `diagnose` export's reading and writing.
 //
-// Exports a plugin can provide:
+// Exports a plugin can provide. Each is also given "locale": the UI's BCP 47 tag, such as "fr-CA", or
+// null, for replying in the user's language. The manifest's and settings' words are translated by
+// Hammer itself, from the package's locales/<tag>.toml.
 //   export  Renders every export format in the manifest. Input is JSON:
 //           {"format": "<id>", "projectName": "...", "language": "en", "topLevelAsChapters": true,
 //            "chapters": [{"name": "...", "scenes": ["<markdown>", ...], "prose": []}],
