@@ -19,6 +19,7 @@ class FakeHammerHost(
 ) : HammerHost {
 	val cache = mutableMapOf<String, ByteArray>()
 	val logged = mutableListOf<Pair<LogLevel, String>>()
+	val progress = mutableListOf<JsonObject>()
 
 	override fun dispatch(request: String): String {
 		val parsed = json.parseToJsonElement(request).jsonObject
@@ -46,5 +47,9 @@ class FakeHammerHost(
 
 	override fun log(level: LogLevel, message: String) {
 		logged += level to message
+	}
+
+	override fun progress(report: String) {
+		progress += json.parseToJsonElement(report).jsonObject
 	}
 }

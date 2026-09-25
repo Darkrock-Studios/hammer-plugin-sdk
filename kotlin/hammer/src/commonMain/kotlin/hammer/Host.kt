@@ -14,6 +14,9 @@ interface HammerHost {
 	fun cacheSet(key: ByteArray, value: ByteArray)
 
 	fun log(level: LogLevel, message: String)
+
+	/** Reports an action's progress, `{"fraction": ..., "message": ...}`. */
+	fun progress(report: String) {}
 }
 
 enum class LogLevel { Info, Warn, Error }

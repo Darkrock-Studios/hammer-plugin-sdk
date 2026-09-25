@@ -14,8 +14,17 @@ import kotlinx.serialization.decodeFromString
 /** The `export` export's body: [render] returns the file's bytes. */
 fun exporter(render: (ExportRequest) -> ByteArray): Int = runBytes { render(json.decodeFromString(inputText())) }
 
-/** The `action` export's body: [handle] returns what the user sees, or null for nothing. */
+/**
+ * The `action` export's body: [handle] returns what the user sees, or null for nothing. For an
+ * `interactive` action, that is an [ActionReply]'s [toJson].
+ */
 fun action(handle: (ActionRequest) -> String?): Int = run { handle(json.decodeFromString(inputText())).orEmpty() }
+
+/** The `diagnose` export's body: [check] returns the issues in the request's paragraphs. */
+fun diagnose(check: (DiagnoseRequest) -> List<Diagnostic>): Int = run {
+	val request = json.decodeFromString<DiagnoseRequest>(inputText())
+	diagnoseReply(request.paragraphs, check(request))
+}
 
 /** The `command` export's body: [answer] returns the line to write to standard output, or null for none. */
 fun command(answer: (CommandRequest) -> String?): Int = run { answer(json.decodeFromString(inputText())).orEmpty() }
@@ -67,6 +76,12 @@ private object ExtismHost : HammerHost {
 		hammerCacheSet(keyHandle, valueHandle)
 		free(keyHandle)
 		if (valueHandle != 0L) free(valueHandle)
+	}
+
+	override fun progress(report: String) {
+		val handle = toKernel(report.encodeToByteArray())
+		hammerProgress(handle)
+		free(handle)
 	}
 
 	override fun log(level: LogLevel, message: String) {
@@ -130,6 +145,9 @@ private external fun logError(offset: Long)
 
 @WasmImport("extism:host/user", "hammer_dispatch")
 private external fun hammerDispatch(request: Long): Long
+
+@WasmImport("extism:host/user", "hammer_progress")
+private external fun hammerProgress(report: Long)
 
 @WasmImport("extism:host/user", "hammer_cache_get")
 private external fun hammerCacheGet(key: Long): Long

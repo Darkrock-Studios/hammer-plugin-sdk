@@ -6,6 +6,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -100,6 +102,64 @@ fun cacheSet(key: String, value: ByteArray): Boolean {
 	if (keyBytes.size > CACHE_MAX_KEY || value.size > CACHE_MAX_VALUE) return false
 	host.cacheSet(keyBytes, value)
 	return true
+}
+
+/**
+ * Reports how far an action has got: [fraction] from 0 to 1, or null when not known, and a line
+ * saying what it is doing. Hammer shows it while the action runs. When the user has stopped the run,
+ * the call does not return: the action ends there.
+ */
+fun progress(fraction: Double? = null, message: String? = null) {
+	host.progress(
+		buildJsonObject {
+			fraction?.let { put("fraction", it.coerceIn(0.0, 1.0)) }
+			message?.let { put("message", it) }
+		}.toString(),
+	)
+}
+
+/** The `diagnose` export's reply for [diagnostics] in [paragraphs], at UTF-8 offsets. */
+fun diagnoseReply(paragraphs: List<String>, diagnostics: List<Diagnostic>): String = buildJsonObject {
+	put("diagnostics", buildJsonArray {
+		diagnostics.forEach { issue ->
+			val paragraph = paragraphs.getOrNull(issue.paragraph) ?: return@forEach
+			add(buildJsonObject {
+				put("paragraph", issue.paragraph)
+				put("start", utf8Offset(paragraph, issue.start))
+				put("end", utf8Offset(paragraph, issue.end))
+				put("message", issue.message)
+				put("fixes", buildJsonArray {
+					issue.fixes.forEach { fix ->
+						if (fix.label == null) {
+							add(fix.replacement)
+						} else {
+							add(buildJsonObject {
+								put("replacement", fix.replacement)
+								put("label", fix.label)
+							})
+						}
+					}
+				})
+			})
+		}
+	})
+}.toString()
+
+private fun utf8Offset(text: String, index: Int): Int {
+	var bytes = 0
+	var i = 0
+	val end = index.coerceIn(0, text.length)
+	while (i < end) {
+		val c = text[i]
+		bytes += when {
+			c.code < 0x80 -> 1
+			c.code < 0x800 -> 2
+			c.isHighSurrogate() && i + 1 < text.length -> { i++; 4 }
+			else -> 3
+		}
+		i++
+	}
+	return bytes
 }
 
 object Log {
