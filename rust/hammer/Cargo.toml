@@ -6,3 +6,8 @@ edition = "2024"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+getrandom = { version = "0.3", optional = true }
+
+[features]
+# getrandom's backend, from WASI's random_get, for plugins whose crates need random numbers.
+getrandom = ["dep:getrandom"]

@@ -1,5 +1,5 @@
 //! Hammer's plugin kit for Rust. See hammer-editor's docs/CLIENT-PLUGINS.md for the exports a plugin
-//! provides (`export`, `action`, `command`) and the JSON each one is given.
+//! provides (`export`, `action`, `command`, `diagnose`) and the JSON each one is given.
 //!
 //! An export is a `#[unsafe(no_mangle)] pub extern "C" fn` returning `i32`, whose body is [run]:
 //!
@@ -15,7 +15,10 @@
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::Once;
+
+pub mod diagnose;
 
 /// The host API version this kit targets; the manifest's `api` must match.
 pub const API_VERSION: u32 = 1;
@@ -207,6 +210,52 @@ pub fn cache_set(key: &str, value: &[u8]) -> bool {
         }
     }
     true
+}
+
+/// The UTF-8 byte offset of each character of `text`, plus one for its end, so a range counted in
+/// characters becomes the byte range Hammer expects.
+pub fn char_byte_offsets(text: &str) -> Vec<usize> {
+    text.char_indices().map(|(at, _)| at).chain(std::iter::once(text.len())).collect()
+}
+
+/// An allocator that zeroes memory as it is freed. A module pre-initialized with Wizer keeps only its
+/// memory's non-zero bytes, so with this it carries what start-up kept, not what it threw away.
+///
+/// ```ignore
+/// #[global_allocator]
+/// static ALLOCATOR: hammer::ZeroingAllocator = hammer::ZeroingAllocator;
+/// ```
+pub struct ZeroingAllocator;
+
+unsafe impl GlobalAlloc for ZeroingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        unsafe { System.alloc(layout) }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        unsafe {
+            ptr.write_bytes(0, layout.size());
+            System.dealloc(ptr, layout)
+        }
+    }
+}
+
+#[cfg(feature = "getrandom")]
+mod random {
+    #[link(wasm_import_module = "wasi_snapshot_preview1")]
+    unsafe extern "C" {
+        fn random_get(buf: *mut u8, len: usize) -> u16;
+    }
+
+    /// getrandom's backend, from the one WASI function Hammer offers for it. Needs
+    /// `--cfg getrandom_backend="custom"`, which this workspace's `.cargo/config.toml` sets.
+    #[unsafe(no_mangle)]
+    unsafe extern "Rust" fn __getrandom_v03_custom(dest: *mut u8, len: usize) -> Result<(), getrandom::Error> {
+        match unsafe { random_get(dest, len) } {
+            0 => Ok(()),
+            _ => Err(getrandom::Error::UNSUPPORTED),
+        }
+    }
 }
 
 pub mod log {
