@@ -95,14 +95,26 @@ static inline HammerWord *hammer_words(HammerText text, uint64_t *count) {
 
 static inline uint64_t hammer_word_length(HammerWord word) { return word.end - word.start; }
 
-// Whether the word is `literal`, which is lower case, ignoring the word's case.
-static inline int hammer_word_is(HammerText text, HammerWord word, const char *literal) {
-  uint64_t n = strlen(literal);
-  if (hammer_word_length(word) != n) return 0;
+// Whether the word is the first n bytes of `literal`, which is lower case, ignoring the word's case.
+// An apostrophe in the literal matches either kind.
+static inline int hammer_word_matches(HammerText text, HammerWord word, const char *literal, uint64_t n) {
+  uint64_t at = word.start;
   for (uint64_t i = 0; i < n; i++) {
-    if (hammer_to_lower(text.data[word.start + i]) != literal[i]) return 0;
+    if (at >= word.end) return 0;
+    if (literal[i] == '\'') {
+      uint64_t apostrophe = hammer_apostrophe_at(text, at);
+      if (!apostrophe) return 0;
+      at += apostrophe;
+    } else if (hammer_to_lower(text.data[at++]) != literal[i]) {
+      return 0;
+    }
   }
-  return 1;
+  return at == word.end;
+}
+
+// Whether the word is `literal`, as hammer_word_matches.
+static inline int hammer_word_is(HammerText text, HammerWord word, const char *literal) {
+  return hammer_word_matches(text, word, literal, strlen(literal));
 }
 
 // Whether the word is one of `literals`, a list ending with 0.
@@ -146,8 +158,8 @@ static inline int hammer_spaced(HammerText text, HammerWord a, HammerWord b) {
   return 1;
 }
 
-// How many words of `phrase`, lower case, match from words[i] on, or 0. A space in the phrase matches
-// spaces or one hyphen between words, and a hyphen matches only a hyphen.
+// How many words of `phrase`, lower case, match from words[i] on, or 0. A word "*" matches any word.
+// A space in the phrase matches spaces or one hyphen between words, and a hyphen matches only a hyphen.
 static inline uint64_t hammer_match_phrase(HammerText text, const HammerWord *words, uint64_t count, uint64_t i,
                                            const char *phrase) {
   uint64_t matched = 0;
@@ -158,10 +170,7 @@ static inline uint64_t hammer_match_phrase(HammerText text, const HammerWord *wo
     while (*end && *end != ' ' && *end != '-') end++;
     HammerWord word = words[i + matched];
     uint64_t n = (uint64_t)(end - at);
-    if (hammer_word_length(word) != n) return 0;
-    for (uint64_t k = 0; k < n; k++) {
-      if (hammer_to_lower(text.data[word.start + k]) != at[k]) return 0;
-    }
+    if (!(n == 1 && *at == '*') && !hammer_word_matches(text, word, at, n)) return 0;
     matched++;
     if (!*end) return matched;
     if (i + matched >= count) return 0;
