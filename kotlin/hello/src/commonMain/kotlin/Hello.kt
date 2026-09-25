@@ -77,14 +77,21 @@ fun countWords(request: ActionRequest): String {
 	}
 }
 
-// An `interactive` action: markdown with buttons, each calling the action again with its id.
-fun wave(request: ActionRequest): ActionReply = when (request.button) {
-	null -> ActionReply(
-		markdown = "Hello from **${request.project}**. Wave back?",
-		buttons = listOf(ActionReply.Button("once", "Wave"), ActionReply.Button("twice", "Wave twice")),
-	)
-	"twice" -> ActionReply(message = "You waved twice")
-	else -> ActionReply(message = "You waved")
+// An `interactive` action: markdown with buttons, each calling the action again with its id. What it
+// writes itself is in the UI's language, where it has one.
+fun wave(request: ActionRequest): ActionReply {
+	val french = request.locale?.startsWith("fr") == true
+	return when (request.button) {
+		null -> ActionReply(
+			markdown = if (french) "Bonjour de **${request.project}**. Rendre le salut ?" else "Hello from **${request.project}**. Wave back?",
+			buttons = listOf(
+				ActionReply.Button("once", if (french) "Saluer" else "Wave"),
+				ActionReply.Button("twice", if (french) "Saluer deux fois" else "Wave twice"),
+			),
+		)
+		"twice" -> ActionReply(message = if (french) "Vous avez salué deux fois" else "You waved twice")
+		else -> ActionReply(message = if (french) "Vous avez salué" else "You waved")
+	}
 }
 
 // A text check: underlines each "very", offering to remove it. Kotlin/Wasm's Regex is slow in Hammer's

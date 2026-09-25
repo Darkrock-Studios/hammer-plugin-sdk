@@ -1,0 +1,29 @@
+name = "Bonjour"
+
+[exporters."hello.txt"]
+label = "Bonjour (TXT)"
+
+[actions.greet]
+label = "Dire bonjour"
+
+[actions.outline]
+label = "Plan"
+
+[actions.count]
+label = "Compter les mots"
+
+[actions.count.fields.scenes]
+label = "Scènes"
+hint = "Laissez vide pour toute l’histoire, ou la scène où vous êtes."
+
+[actions.wave]
+label = "Saluer"
+
+[diagnostics.very]
+label = "Très"
+
+[commands.hello]
+help = "Salue chaque ligne de l’entrée standard."
+
+[settings.greeting]
+label = "Salutation"

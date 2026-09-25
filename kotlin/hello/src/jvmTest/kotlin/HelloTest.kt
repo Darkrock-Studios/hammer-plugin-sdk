@@ -66,6 +66,8 @@ class HelloTest {
 	fun `waving shows buttons, and a button's id comes back`() {
 		assertEquals(listOf("once", "twice"), wave(action("wave")).buttons.map { it.id })
 		assertEquals("You waved twice", wave(action("wave", button = "twice")).message)
+		val french = ActionRequest("wave", "Storm", settings, button = "twice", locale = "fr-CA")
+		assertEquals("Vous avez salué deux fois", wave(french).message)
 	}
 
 	@Test

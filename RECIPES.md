@@ -271,6 +271,35 @@ fun command(): Int = command(::helloCommand)
 
 `echo Alice | hammer hello` prints `Hello, Alice!`.
 
+## Translations
+
+A package translates its declared words, the manifest's and `settings.toml`'s, in
+`locales/<tag>.toml` files beside the manifest, keyed as the manifest keys them. Hammer picks the most
+specific one for the UI's language (`fr-CA`, then `fr`) and falls back to the manifest for anything
+left out. Hello's [locales/fr.toml](kotlin/hello/locales/fr.toml):
+
+```toml
+name = "Bonjour"
+
+[actions.count]
+label = "Compter les mots"
+
+[actions.count.fields.scenes]
+label = "Scènes"
+hint = "Laissez vide pour toute l’histoire, ou la scène où vous êtes."
+
+[settings.greeting]
+label = "Salutation"
+```
+
+What the plugin writes at run time is its own to translate: every request carries `locale`, the UI's
+language tag, which is not the project's `language`, the one the story is written in.
+
+```kotlin
+val french = request.locale?.startsWith("fr") == true
+ActionReply(message = if (french) "Vous avez salué" else "You waved")
+```
+
 ## Calling Hammer
 
 `call<T>(operation, input)` runs one of Hammer's operations and reads its output; `callJson` gives the
