@@ -3,6 +3,7 @@
 # locales/, and resources/ if it has them, and a built module. Needs zip.
 # Usage: package.sh <plugin directory> <module.wasm>
 set -e
+[ $# -eq 2 ] || { echo "Usage: $0 <plugin directory> <module.wasm>" >&2; exit 2; }
 dir="$1"
 wasm="$2"
 name=$(basename "$(cd "$dir" && pwd)")
