@@ -30,8 +30,6 @@ Gradle plugin refuses a manifest whose `api` differs.
 4. **Names that are free.** Proposed below; each needs claiming before the first release.
 5. **CI.** A GitHub Actions workflow that builds and tests every kit, plus `hello`, on each push and pull
    request, and a release workflow started by an `sdk-v*` tag that publishes all of them.
-6. **Timing.** The first public release goes out with the Hammer release that ships runtime plugins
-   (4.0), so nothing is published against a host API that may still change.
 
 ## Kotlin: Maven Central and the Gradle Plugin Portal
 
@@ -102,6 +100,6 @@ notes listing the host API version, the Kotlin version, and what changed in each
 3. Set up the Rust crate, tried with `cargo publish --dry-run`. crates.io holds no names in reserve, so
    if `hammer-plugin` is at risk, an early 0.x release claims it.
 4. The C tarball and the release workflow that makes the GitHub release.
-5. The first release of all three, with Hammer 4.0.
+5. The first release of all three.
 6. Switch hammer-plugins and hammer-plugin-development to the published kits.
 7. `cargo-hammer`, the documentation move, and the templates.
