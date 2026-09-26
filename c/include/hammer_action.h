@@ -110,9 +110,11 @@ static inline HammerText hammer_input_string(const HammerActionRequest *request,
 }
 
 // A button of an interactive action's reply: pressing it calls the action again with id as "button".
+// One marked footer sits in the dialog's footer, for acting on the whole reply, such as a fresh list.
 typedef struct {
   const char *id;
   const char *label;
+  int footer;
 } HammerButton;
 
 // Writes an interactive action's reply to out: markdown to show (0 for none, which closes the dialog),
@@ -125,7 +127,7 @@ static inline void hammer_put_reply(HammerBuffer *out, const char *markdown, uin
     hammer_put_json_string(out, buttons[i].id, strlen(buttons[i].id));
     hammer_put_text(out, ",\"label\":");
     hammer_put_json_string(out, buttons[i].label, strlen(buttons[i].label));
-    hammer_put_char(out, '}');
+    hammer_put_text(out, buttons[i].footer ? ",\"footer\":true}" : "}");
   }
   hammer_put_char(out, ']');
   if (markdown) {

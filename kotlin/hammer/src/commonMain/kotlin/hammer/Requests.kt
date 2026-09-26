@@ -70,8 +70,9 @@ class ActionReply(
 	val buttons: List<Button> = emptyList(),
 	val message: String? = null,
 ) {
+	/** A button; one with [footer] sits in the dialog's footer, for acting on the whole reply, such as a fresh list. */
 	@Serializable
-	class Button(val id: String, val label: String)
+	class Button(val id: String, val label: String, val footer: Boolean = false)
 
 	/** What an `interactive` action's `action` export returns. */
 	fun toJson(): String = json.encodeToString(serializer(), this)

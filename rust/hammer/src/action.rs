@@ -60,10 +60,14 @@ pub struct Reply {
     pub message: Option<String>,
 }
 
-#[derive(Serialize)]
+/// A button; one with `footer` sits in the dialog's footer, for acting on the whole reply, such as a
+/// fresh list.
+#[derive(Serialize, Default)]
 pub struct Button {
     pub id: String,
     pub label: String,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub footer: bool,
 }
 
 impl Reply {

@@ -195,7 +195,8 @@ fun countWords(request: ActionRequest): String {
 `output = "interactive"` returns an `ActionReply`: markdown shown with buttons under it. Pressing one
 calls the action again with the same input and the button's id in `request.button`. A reply with
 markdown updates the dialog, and one without closes it; a `message` is shown either way. Anything the
-next call needs, such as a random seed, can ride in the button's id.
+next call needs, such as a random seed, can ride in the button's id. A button with `footer = true` sits
+in the dialog's footer beside Copy and Save, for one that acts on the whole reply, such as a fresh list.
 
 ```toml
 [[actions]]
