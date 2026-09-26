@@ -10,7 +10,7 @@
 //   }
 //
 // HAMMER_EXPECT checks a diagnose plugin's findings in one English paragraph, given the settings
-// object's JSON or 0. Each finding reads "[text]>fix|fix", text being what it covers; a labelled fix
+// object's JSON or 0; HAMMER_EXPECT_IN in another language's. Each finding reads "[text]>fix|fix", text being what it covers; a labelled fix
 // reads "replacement{label}". Findings are joined by "; ", and "" means none.
 #ifndef HAMMER_TEST_H
 #define HAMMER_TEST_H
@@ -163,9 +163,11 @@ static char *hammer_test_render(const char *reply, const char *paragraph, int me
   return out.data;
 }
 
-static char *hammer_test_paragraph(const char *settings, const char *paragraph, int messages) {
+static char *hammer_test_paragraph(const char *language, const char *settings, const char *paragraph, int messages) {
   HammerTestString request = {0};
-  hammer_test_append_sz(&request, "{\"diagnostics\":\"" HAMMER_TEST_DIAGNOSTICS "\",\"language\":\"en\",\"settings\":");
+  hammer_test_append_sz(&request, "{\"diagnostics\":\"" HAMMER_TEST_DIAGNOSTICS "\",\"language\":\"");
+  hammer_test_append_sz(&request, language);
+  hammer_test_append_sz(&request, "\",\"settings\":");
   hammer_test_append_sz(&request, settings ? settings : "{}");
   hammer_test_append_sz(&request, ",\"paragraphs\":[");
   hammer_test_append_json_string(&request, paragraph);
@@ -177,9 +179,9 @@ static char *hammer_test_paragraph(const char *settings, const char *paragraph, 
   return rendered;
 }
 
-static void hammer_test_expect(const char *settings, const char *paragraph, const char *expected, int messages,
-                               const char *file, int line) {
-  char *actual = hammer_test_paragraph(settings, paragraph, messages);
+static void hammer_test_expect(const char *language, const char *settings, const char *paragraph, const char *expected,
+                               int messages, const char *file, int line) {
+  char *actual = hammer_test_paragraph(language, settings, paragraph, messages);
   hammer_test_run_count++;
   if (strcmp(actual, expected) != 0) {
     hammer_test_failures++;
@@ -189,10 +191,14 @@ static void hammer_test_expect(const char *settings, const char *paragraph, cons
 }
 
 #define HAMMER_EXPECT(settings, paragraph, expected) \
-  hammer_test_expect((settings), (paragraph), (expected), 0, __FILE__, __LINE__)
+  hammer_test_expect("en", (settings), (paragraph), (expected), 0, __FILE__, __LINE__)
+#define HAMMER_EXPECT_IN(language, settings, paragraph, expected) \
+  hammer_test_expect((language), (settings), (paragraph), (expected), 0, __FILE__, __LINE__)
 // As HAMMER_EXPECT, with each finding's message after its text: "[the the] Repeated word".
 #define HAMMER_EXPECT_MESSAGES(settings, paragraph, expected) \
-  hammer_test_expect((settings), (paragraph), (expected), 1, __FILE__, __LINE__)
+  hammer_test_expect("en", (settings), (paragraph), (expected), 1, __FILE__, __LINE__)
+#define HAMMER_EXPECT_MESSAGES_IN(language, settings, paragraph, expected) \
+  hammer_test_expect((language), (settings), (paragraph), (expected), 1, __FILE__, __LINE__)
 #endif // HAMMER_DIAGNOSE_H
 
 // Prints a summary; returns main's exit status.
