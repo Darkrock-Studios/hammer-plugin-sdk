@@ -21,6 +21,7 @@ Hammer's own plugins, in hammer-plugins, are fuller examples in each language.
 ## Using the kits
 
 The kits are not published yet: a plugin repository builds against a checkout of this one beside it.
+[PUBLISHING.md](PUBLISHING.md) has the plan for publishing each.
 
 - C: `#include "hammer.h"`, and build with `c/build.sh <plugin directory>`, which puts `c/include` on
   the include path and packs the directory's `manifest.toml`, `settings.toml`, `locales/`, and
