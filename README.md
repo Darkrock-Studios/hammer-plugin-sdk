@@ -45,3 +45,8 @@ The kits are not published yet: a plugin repository builds against a checkout of
 
 In Hammer on desktop: Settings, Plugins, Install plugin, pick the `.hammerplugin`, approve its
 permissions, and restart Hammer.
+
+## License
+
+MIT; see [LICENSE](LICENSE). `c/include/extism-pdk.h` is Extism's, under BSD-3
+([EXTISM-PDK-LICENSE](c/include/EXTISM-PDK-LICENSE)).

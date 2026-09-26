@@ -18,8 +18,8 @@ Gradle plugin refuses a manifest whose `api` differs.
 
 ## Before any release
 
-1. **License.** MIT, for this repository, hammer-plugins, and hammer-plugin-development: a `LICENSE`
-   in each, and the license named in every package's metadata. The C kit also ships Extism's BSD-3
+1. **License.** MIT, for this repository, hammer-plugins, and hammer-plugin-development, each with a
+   `LICENSE` already; every package's metadata names it too. The C kit also ships Extism's BSD-3
    notice (`c/include/EXTISM-PDK-LICENSE`) with `extism-pdk.h`.
 2. **A public home.** Push this repository to GitHub (`Wavesonics/hammer-plugin-sdk`). Releases,
    issues, and the crate's and POM's `repository` links point there.
