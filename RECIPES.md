@@ -25,7 +25,7 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
    name = "Greeter"
    version = "0.1.0"
    api = 1
-   description = "Greets each scene."  # shown when installing, and from its Info button
+   description = "Greets each scene."  # shown when installing and from Info; links are clickable
    # languages = ["en"]   # the project languages it works with, if it depends on them
 
    [permissions]
