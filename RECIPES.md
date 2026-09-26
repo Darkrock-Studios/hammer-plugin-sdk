@@ -235,7 +235,8 @@ fun tip(): String = resourceText("tips.txt").orEmpty().lines().filter { it.isNot
 
 `resource(name)` gives the bytes, and both give null for a file that isn't there. In JVM tests,
 `FakeHammerHost` reads them from the plugin's own `resources/`. C has `hammer_resource_load`, with
-`hammer_alloc_keep` to keep one between calls, and Rust has `hammer::resource`.
+`hammer_alloc_keep` to keep one between calls, and `hammer_resource_lines` for a list file (one entry a
+line, `#` comments); Rust has `hammer::resource`.
 
 ## A text check
 

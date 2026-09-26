@@ -95,6 +95,11 @@ void *hammer_must_alloc(uint64_t size);
 // which c/test.sh sets to the plugin's resources/.
 const char *hammer_resource_load(const char *name, uint64_t *length);
 
+// A resource that is a list, such as a word list, read with hammer_resource_load: its lines, each
+// trimmed of spaces, tabs, and a \r, without blank lines and # comments, ending with a 0. Sets *count
+// to how many. Returns 0 when the package has no such file, or it is empty.
+const char **hammer_resource_lines(const char *name, uint64_t *count);
+
 #ifndef HAMMER_NATIVE
 
 // Raw progress report: a handle to {"fraction": 0.5, "message": "..."}, either key optional.
@@ -145,6 +150,30 @@ void *hammer_must_alloc(uint64_t size) {
   void *memory = hammer_alloc(size);
   if (!memory) hammer_fail(HAMMER_OUT_OF_MEMORY);
   return memory;
+}
+
+const char **hammer_resource_lines(const char *name, uint64_t *count) {
+  *count = 0;
+  uint64_t length;
+  // The loaded file is this call's, so it is cut into lines where it is.
+  char *text = (char *)hammer_resource_load(name, &length);
+  if (!text) return 0;
+  uint64_t most = 1;
+  for (uint64_t i = 0; i < length; i++) most += text[i] == '\n';
+  const char **lines = hammer_must_alloc((most + 1) * sizeof(*lines));
+  char *line = text;
+  while (*line) {
+    char *end = line;
+    while (*end && *end != '\n') end++;
+    char *next = *end ? end + 1 : end;
+    while (end > line && (end[-1] == '\r' || end[-1] == ' ' || end[-1] == '\t')) end--;
+    *end = 0;
+    while (*line == ' ' || *line == '\t') line++;
+    if (*line && *line != '#') lines[(*count)++] = line;
+    line = next;
+  }
+  lines[*count] = 0;
+  return lines;
 }
 
 #ifdef HAMMER_NATIVE
