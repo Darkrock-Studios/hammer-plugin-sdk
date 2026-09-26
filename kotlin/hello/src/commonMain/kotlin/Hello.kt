@@ -10,6 +10,7 @@ import hammer.Fix
 import hammer.call
 import hammer.input
 import hammer.progress
+import hammer.resourceText
 import hammer.settings
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -76,6 +77,9 @@ fun countWords(request: ActionRequest): String {
 		}
 	}
 }
+
+// Reads a file the package ships in resources/: one tip a line, picked at random.
+fun tip(): String = resourceText("tips.txt").orEmpty().lines().filter { it.isNotBlank() }.randomOrNull() ?: "No tips today"
 
 // An `interactive` action: markdown with buttons, each calling the action again with its id. What it
 // writes itself is in the UI's language, where it has one.

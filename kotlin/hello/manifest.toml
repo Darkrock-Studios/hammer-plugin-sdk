@@ -34,6 +34,10 @@ label = "Scenes"
 hint = "Leave empty for the whole story, or the scene you are in."
 
 [[actions]]
+name = "tip"
+label = "Writing tip"
+
+[[actions]]
 name = "wave"
 label = "Wave"
 output = "interactive"

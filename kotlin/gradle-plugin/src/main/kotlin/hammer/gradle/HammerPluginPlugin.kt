@@ -11,8 +11,8 @@ import org.jetbrains.kotlin.gradle.targets.js.dsl.KotlinJsTargetDsl
 /**
  * Builds a Hammer plugin in Kotlin/Wasm. Applying `hammer.plugin` sets up Kotlin Multiplatform with a
  * `wasmWasi` target for the plugin and a `jvm` target for testing its common code, adds the kit, and
- * adds `hammerPlugin`, which builds `build/<name>.hammerplugin` from `manifest.toml`, `settings.toml`
- * and `locales/` if there are any, and the optimized module. The plugin's own code is common code plus its
+ * adds `hammerPlugin`, which builds `build/<name>.hammerplugin` from `manifest.toml`, `settings.toml`,
+ * `locales/`, and `resources/` if there are any, and the optimized module. The plugin's own code is common code plus its
  * `@WasmExport` functions in `wasmWasiMain`.
  */
 class HammerPluginPlugin : Plugin<Project> {
@@ -53,13 +53,14 @@ class HammerPluginPlugin : Plugin<Project> {
 			.file("compileSync/wasmWasi/main/productionExecutable/optimized/${project.name}.wasm")
 		project.tasks.register("hammerPlugin", Zip::class.java) { zip ->
 			zip.group = "build"
-			zip.description = "Builds the .hammerplugin package from the manifest, settings, translations, and optimized module."
+			zip.description = "Builds the .hammerplugin package from the manifest, settings, translations, resources, and optimized module."
 			zip.dependsOn("compileProductionExecutableKotlinWasmWasiOptimize")
 			val manifest = project.file("manifest.toml")
 			zip.doFirst { checkManifest(manifest) }
 			zip.from(manifest)
 			zip.from(project.file("settings.toml").takeIf { it.exists() } ?: project.files())
 			zip.from(project.file("locales")) { it.include("*.toml"); it.into("locales") }
+			zip.from(project.file("resources")) { it.into("resources") }
 			zip.from(optimized) { it.rename { "plugin.wasm" } }
 			zip.archiveFileName.set("${project.name}.hammerplugin")
 			zip.destinationDirectory.set(project.layout.buildDirectory)

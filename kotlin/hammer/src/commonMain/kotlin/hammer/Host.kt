@@ -17,6 +17,9 @@ interface HammerHost {
 
 	/** Reports an action's progress, `{"fraction": ..., "message": ...}`. */
 	fun progress(report: String) {}
+
+	/** A file from the package's `resources/`, or null when there is none by that name, or it is empty. */
+	fun resource(name: String): ByteArray? = null
 }
 
 enum class LogLevel { Info, Warn, Error }

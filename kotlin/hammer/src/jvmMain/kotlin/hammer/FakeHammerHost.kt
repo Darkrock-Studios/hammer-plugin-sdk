@@ -7,15 +7,19 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import java.io.File
 
 /**
  * A stand-in for Hammer in JVM tests: [operations] answer calls by name, and [cache] is the plugin's
  * cache. An operation with no handler fails as NotFound; a handler throws [OperationException] to fail.
+ * Resources are read from [resourceDirectory], by default the plugin's own `resources/`, since Gradle
+ * runs tests in the project's directory.
  *
  *     hammer.host = FakeHammerHost(mapOf("scene.read" to { input -> buildJsonObject { put("markdown", "Rain.") } }))
  */
 class FakeHammerHost(
 	private val operations: Map<String, (JsonObject) -> JsonElement> = emptyMap(),
+	private val resourceDirectory: File = File("resources"),
 ) : HammerHost {
 	val cache = mutableMapOf<String, ByteArray>()
 	val logged = mutableListOf<Pair<LogLevel, String>>()
@@ -43,6 +47,12 @@ class FakeHammerHost(
 
 	override fun cacheSet(key: ByteArray, value: ByteArray) {
 		if (value.isEmpty()) cache.remove(key.decodeToString()) else cache[key.decodeToString()] = value
+	}
+
+	// Only paths inside the directory, as Hammer only has the files under resources/.
+	override fun resource(name: String): ByteArray? {
+		if (name.split('/').any { it.isEmpty() || it == "." || it == ".." || '\\' in it }) return null
+		return File(resourceDirectory, name).takeIf { it.isFile }?.readBytes()?.takeIf { it.isNotEmpty() }
 	}
 
 	override fun log(level: LogLevel, message: String) {

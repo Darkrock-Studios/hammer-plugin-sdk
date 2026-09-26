@@ -105,6 +105,16 @@ fun cacheSet(key: String, value: ByteArray): Boolean {
 }
 
 /**
+ * Reads a file from the package's `resources/` by its path there, such as `words/en.txt`: null when the
+ * package has none by that name, or it is empty. Hammer reads it from the package on every call, so keep
+ * one you use often.
+ */
+fun resource(name: String): ByteArray? = host.resource(name)
+
+/** [resource] as UTF-8 text. */
+fun resourceText(name: String): String? = resource(name)?.decodeToString()
+
+/**
  * Reports how far an action has got: [fraction] from 0 to 1, or null when not known, and a line
  * saying what it is doing. Hammer shows it while the action runs. When the user has stopped the run,
  * the call does not return: the action ends there.

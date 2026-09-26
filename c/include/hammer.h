@@ -6,7 +6,7 @@
 //
 // With HAMMER_NATIVE defined, a plugin compiles for the machine building it instead, with libc and
 // without Extism, so its logic can be unit tested natively (see hammer_test.h and c/test.sh). Only
-// memory, hammer_fail, and what builds on them are there: no operations or cache.
+// memory, hammer_fail, resources, and what builds on them are there: no operations or cache.
 //
 // The rest of the kit: hammer_json.h reads JSON, hammer_out.h writes output, hammer_text.h finds
 // words in UTF-8 text, and hammer_diagnose.h does a `diagnose` export's reading and writing.
@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #else
 #ifdef HAMMER_IMPLEMENTATION
 #define EXTISM_IMPLEMENTATION
@@ -77,17 +78,32 @@ void hammer_progress(double fraction, const char *message);
 void *hammer_alloc(uint64_t size);
 void hammer_alloc_reset(void);
 
+// Keeps everything hammer_alloc has given out so far, for later calls: resets go back only to here.
+// Memory kept is never reused, so keep what later calls need, such as a resource, early in a call.
+void hammer_alloc_keep(void);
+
 // Ends the call with message as its error.
 __attribute__((noreturn)) void hammer_fail(const char *message);
 
 // hammer_alloc, or hammer_fail with HAMMER_OUT_OF_MEMORY.
 void *hammer_must_alloc(uint64_t size);
 
+// Reads a file from the package's resources/ by its path there, such as "words/en.txt", into
+// hammer_alloc's memory with a NUL after it, and sets *length. Returns 0 when the package has none by
+// that name, or it is empty. Hammer reads it from the package each time, so one used on every call is
+// worth keeping with hammer_alloc_keep. Natively, it reads from the directory in HAMMER_RESOURCES,
+// which c/test.sh sets to the plugin's resources/.
+const char *hammer_resource_load(const char *name, uint64_t *length);
+
 #ifndef HAMMER_NATIVE
 
 // Raw progress report: a handle to {"fraction": 0.5, "message": "..."}, either key optional.
 EXTISM_IMPORT_USER("hammer_progress")
 extern void hammer_progress_report(ExtismHandle report);
+
+// Raw resource access: a handle to the resource the handle name names, or 0 when there is none.
+EXTISM_IMPORT_USER("hammer_resource")
+extern ExtismHandle hammer_resource(ExtismHandle name);
 
 // Raw dispatch: request is a handle to {"operation": "<name>", "input": {...}}.
 EXTISM_IMPORT_USER("hammer_dispatch")
@@ -136,8 +152,11 @@ void *hammer_must_alloc(uint64_t size) {
 #define HAMMER_NATIVE_MEMORY (64ull * 1024 * 1024)
 static unsigned char *hammer_native_heap;
 static uint64_t hammer_native_used;
+static uint64_t hammer_native_kept;
 
-void hammer_alloc_reset(void) { hammer_native_used = 0; }
+void hammer_alloc_reset(void) { hammer_native_used = hammer_native_kept; }
+
+void hammer_alloc_keep(void) { hammer_native_kept = hammer_native_used; }
 
 void *hammer_alloc(uint64_t size) {
   if (!hammer_native_heap) hammer_native_heap = malloc(HAMMER_NATIVE_MEMORY);
@@ -155,6 +174,39 @@ void hammer_fail(const char *message) {
 void hammer_progress(double fraction, const char *message) {
   (void)fraction;
   (void)message;
+}
+
+// Whether name stays inside the directory it is looked up in, as Hammer's names under resources/ do.
+static int hammer_native_resource_name(const char *name) {
+  for (const char *segment = name;;) {
+    const char *slash = strchr(segment, '/');
+    size_t n = slash ? (size_t)(slash - segment) : strlen(segment);
+    if (n == 0 || (n == 1 && segment[0] == '.') || (n == 2 && segment[0] == '.' && segment[1] == '.')) return 0;
+    if (!slash) return 1;
+    segment = slash + 1;
+  }
+}
+
+const char *hammer_resource_load(const char *name, uint64_t *length) {
+  *length = 0;
+  const char *directory = getenv("HAMMER_RESOURCES");
+  char path[4096];
+  struct stat info;
+  if (!directory || !hammer_native_resource_name(name)) return 0;
+  if (snprintf(path, sizeof path, "%s/%s", directory, name) >= (int)sizeof path) return 0;
+  if (stat(path, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0) return 0;
+  FILE *file = fopen(path, "rb");
+  if (!file) return 0;
+  long size = (long)info.st_size;
+  char *bytes = hammer_must_alloc((uint64_t)size + 1);
+  if (fread(bytes, 1, (size_t)size, file) == (size_t)size) {
+    bytes[size] = 0;
+    *length = (uint64_t)size;
+  } else {
+    bytes = 0;
+  }
+  fclose(file);
+  return bytes;
 }
 #else
 void hammer_fail(const char *message) {
@@ -186,8 +238,14 @@ size_t strlen(const char *s) {
 
 extern unsigned char __heap_base;
 static uintptr_t hammer_heap_top;
+static uintptr_t hammer_heap_kept;
 
-void hammer_alloc_reset(void) { hammer_heap_top = (uintptr_t)&__heap_base; }
+void hammer_alloc_reset(void) { hammer_heap_top = hammer_heap_kept ? hammer_heap_kept : (uintptr_t)&__heap_base; }
+
+void hammer_alloc_keep(void) {
+  if (hammer_heap_top == 0) hammer_alloc_reset();
+  hammer_heap_kept = hammer_heap_top;
+}
 
 void *hammer_alloc(uint64_t size) {
   if (hammer_heap_top == 0) hammer_alloc_reset();
@@ -255,6 +313,21 @@ ExtismHandle hammer_call(const char *operation, const char *input_json) {
   ExtismHandle reply = hammer_dispatch(request);
   extism_free(request);
   return reply;
+}
+
+const char *hammer_resource_load(const char *name, uint64_t *length) {
+  *length = 0;
+  ExtismHandle name_handle = extism_alloc_buf(name, strlen(name));
+  ExtismHandle handle = hammer_resource(name_handle);
+  extism_free(name_handle);
+  if (!handle) return 0;
+  uint64_t n = extism_length(handle);
+  char *bytes = hammer_must_alloc(n + 1);
+  extism_load_from_handle(handle, 0, bytes, n);
+  extism_free(handle);
+  bytes[n] = 0;
+  *length = n;
+  return bytes;
 }
 
 ExtismHandle hammer_cache_read(const void *key, uint64_t key_length) {

@@ -16,6 +16,9 @@ label = "Compter les mots"
 label = "Scènes"
 hint = "Laissez vide pour toute l’histoire, ou la scène où vous êtes."
 
+[actions.tip]
+label = "Conseil d’écriture"
+
 [actions.wave]
 label = "Saluer"
 

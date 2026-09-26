@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds each named plugin (default: all of them) into <plugin>/build: <plugin>.wasm, and, for one with
-# a manifest.toml, <plugin>.hammerplugin with its settings.toml and locales/ if it has them. Freestanding wasm32, no
+# a manifest.toml, <plugin>.hammerplugin with its settings.toml, locales/, and resources/ if it has them. Freestanding wasm32, no
 # libc or WASI. Needs clang, wasm-ld (lld), and zip.
 set -e
 cd "$(dirname "$0")"
@@ -17,6 +17,7 @@ for plugin in $plugins; do
 		cp "$plugin/manifest.toml" "$plugin/build/package/"
 		[ -f "$plugin/settings.toml" ] && cp "$plugin/settings.toml" "$plugin/build/package/"
 		[ -d "$plugin/locales" ] && cp -r "$plugin/locales" "$plugin/build/package/"
+		[ -d "$plugin/resources" ] && cp -r "$plugin/resources" "$plugin/build/package/"
 		cp "$plugin/build/$plugin.wasm" "$plugin/build/package/plugin.wasm"
 		rm -f "$plugin/build/$plugin.hammerplugin"
 		(cd "$plugin/build/package" && zip -q -X -r "../$plugin.hammerplugin" .)

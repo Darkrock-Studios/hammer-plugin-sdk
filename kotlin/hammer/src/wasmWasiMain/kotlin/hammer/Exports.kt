@@ -78,6 +78,14 @@ private object ExtismHost : HammerHost {
 		if (valueHandle != 0L) free(valueHandle)
 	}
 
+	override fun resource(name: String): ByteArray? {
+		val nameHandle = toKernel(name.encodeToByteArray())
+		val value = hammerResource(nameHandle)
+		free(nameHandle)
+		if (value == 0L) return null
+		return fromKernel(value).also { free(value) }
+	}
+
 	override fun progress(report: String) {
 		val handle = toKernel(report.encodeToByteArray())
 		hammerProgress(handle)
@@ -148,6 +156,9 @@ private external fun hammerDispatch(request: Long): Long
 
 @WasmImport("extism:host/user", "hammer_progress")
 private external fun hammerProgress(report: Long)
+
+@WasmImport("extism:host/user", "hammer_resource")
+private external fun hammerResource(name: Long): Long
 
 @WasmImport("extism:host/user", "hammer_cache_get")
 private external fun hammerCacheGet(key: Long): Long

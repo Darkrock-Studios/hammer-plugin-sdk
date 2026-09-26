@@ -6,8 +6,8 @@ hammer-editor's `docs/CLIENT-PLUGINS.md` has the full rules for each.
 
 ## A new plugin
 
-A plugin is a `.hammerplugin` package: `manifest.toml`, an optional `settings.toml`, and the compiled
-module. In `kotlin/`:
+A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and optionally
+`settings.toml`, translations in `locales/`, and files to read at run time in `resources/`. In `kotlin/`:
 
 1. Make a directory, say `kotlin/greeter`, with `build.gradle.kts`:
 
@@ -215,6 +215,27 @@ fun wave(request: ActionRequest): ActionReply = when (request.button) {
 // In the action export's `when`:
 "wave" -> wave(request).toJson()
 ```
+
+## Resources
+
+Files in the plugin's `resources/` directory, such as word lists and dictionaries, go into the package
+as they are, and the plugin reads them by their path there. Up to 1,000 files and 64 MiB in all. Hammer
+reads a resource from the package each time it is asked for, so keep one you use often. Hello's
+[resources/tips.txt](kotlin/hello/resources/tips.txt) has a tip a line:
+
+```toml
+[[actions]]
+name = "tip"
+label = "Writing tip"
+```
+
+```kotlin
+fun tip(): String = resourceText("tips.txt").orEmpty().lines().filter { it.isNotBlank() }.randomOrNull() ?: "No tips today"
+```
+
+`resource(name)` gives the bytes, and both give null for a file that isn't there. In JVM tests,
+`FakeHammerHost` reads them from the plugin's own `resources/`. C has `hammer_resource_load`, with
+`hammer_alloc_keep` to keep one between calls, and Rust has `hammer::resource`.
 
 ## A text check
 

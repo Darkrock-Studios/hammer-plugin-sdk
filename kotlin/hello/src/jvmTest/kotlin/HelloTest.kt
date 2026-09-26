@@ -63,6 +63,11 @@ class HelloTest {
 	}
 
 	@Test
+	fun `a tip comes from the packaged tips`() {
+		assert(tip() in java.io.File("resources/tips.txt").readLines())
+	}
+
+	@Test
 	fun `waving shows buttons, and a button's id comes back`() {
 		assertEquals(listOf("once", "twice"), wave(action("wave")).buttons.map { it.id })
 		assertEquals("You waved twice", wave(action("wave", button = "twice")).message)

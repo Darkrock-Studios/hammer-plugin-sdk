@@ -57,6 +57,7 @@ unsafe extern "C" {
     fn hammer_cache_get(key: u64) -> u64;
     fn hammer_cache_set(key: u64, value: u64);
     fn hammer_progress(report: u64);
+    fn hammer_resource(name: u64) -> u64;
 }
 
 fn to_kernel(bytes: &[u8]) -> u64 {
@@ -214,6 +215,21 @@ pub fn cache_set(key: &str, value: &[u8]) -> bool {
         }
     }
     true
+}
+
+/// Reads a file from the package's `resources/` by its path there, such as `words/en.txt`: None when
+/// the package has none by that name, or it is empty. Hammer reads it from the package on every call,
+/// so keep one you use often.
+pub fn resource(name: &str) -> Option<Vec<u8>> {
+    let name = to_kernel(name.as_bytes());
+    let value = unsafe { hammer_resource(name) };
+    unsafe { free(name) };
+    if value == 0 {
+        return None;
+    }
+    let bytes = from_kernel(value);
+    unsafe { free(value) };
+    Some(bytes)
 }
 
 /// Reports how far an action has got: `fraction` from 0 to 1 when known, and a line saying what it is
