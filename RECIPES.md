@@ -25,6 +25,8 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
    name = "Greeter"
    version = "0.1.0"
    api = 1
+   description = "Greets each scene."  # shown when installing, and from its Info button
+   # languages = ["en"]   # the project languages it works with, if it depends on them
 
    [permissions]
    operations = ["scene.tree", "scene.read"]  # what it may call; see Calling Hammer
@@ -302,6 +304,7 @@ left out. Hello's [locales/fr.toml](kotlin/hello/locales/fr.toml):
 
 ```toml
 name = "Bonjour"
+description = "Un petit exemple de chaque sorte d’extension, tiré des recettes."
 
 [actions.count]
 label = "Compter les mots"

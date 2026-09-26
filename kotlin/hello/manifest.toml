@@ -2,6 +2,7 @@ id = "hello"
 name = "Hello"
 version = "0.1.0"
 api = 1
+description = "A small example of each kind of plugin, from the plugin recipes."
 
 [permissions]
 operations = ["scene.tree", "scene.read"]

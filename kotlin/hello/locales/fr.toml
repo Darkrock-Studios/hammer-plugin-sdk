@@ -1,4 +1,5 @@
 name = "Bonjour"
+description = "Un petit exemple de chaque sorte d’extension, tiré des recettes."
 
 [exporters."hello.txt"]
 label = "Bonjour (TXT)"
