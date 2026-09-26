@@ -1,17 +1,18 @@
 #!/bin/sh
-# Runs each named plugin's native unit tests (default: every plugin with a test.c): builds test.c for
-# this machine with HAMMER_NATIVE and the address and undefined behavior sanitizers, reading resources
-# from the plugin's resources/. A test includes the plugin's whole source, so functions only its exports
-# call go unused there. Needs clang.
+# Runs each named C plugin directory's native unit tests, its test.c: built for this machine with
+# HAMMER_NATIVE and the address and undefined behavior sanitizers, reading resources from the plugin's
+# resources/. A test includes the plugin's whole source, so functions only its exports call go unused
+# there. Needs clang.
+# Usage: test.sh <plugin directory>...
 set -e
-cd "$(dirname "$0")"
-plugins="$*"
-[ -n "$plugins" ] || plugins=$(for test in */test.c; do [ -f "$test" ] && dirname "$test"; done)
-for plugin in $plugins; do
-	mkdir -p "$plugin/build"
-	clang -DHAMMER_NATIVE -std=c11 -g -O1 -Wall -Wextra -Werror -Wno-unused-function \
+kit=$(cd "$(dirname "$0")" && pwd)
+[ $# -gt 0 ] || { echo "Usage: $0 <plugin directory>..." >&2; exit 2; }
+for dir in "$@"; do
+	name=$(basename "$(cd "$dir" && pwd)")
+	mkdir -p "$dir/build"
+	clang -DHAMMER_NATIVE -std=c11 -g -O1 -Wall -Wextra -Werror -Wno-unused-function -I "$kit/include" \
 		-fsanitize=address,undefined -fno-sanitize-recover=all \
-		-o "$plugin/build/test" "$plugin/test.c"
-	printf '%s: ' "$plugin"
-	HAMMER_RESOURCES="$plugin/resources" "$plugin/build/test"
+		-o "$dir/build/test" "$dir/test.c"
+	printf '%s: ' "$name"
+	HAMMER_RESOURCES="$dir/resources" "$dir/build/test"
 done

@@ -1,4 +1,4 @@
-rootProject.name = "hammer-kotlin-plugins"
+rootProject.name = "hammer-plugin-sdk"
 
 pluginManagement {
 	includeBuild("gradle-plugin")
@@ -14,5 +14,5 @@ dependencyResolutionManagement {
 	}
 }
 
-include("plugin-kit", "upper", "wordcount", "wordfreq", "style", "mcp", "hello")
+include("plugin-kit", "hello")
 project(":plugin-kit").projectDir = file("hammer")

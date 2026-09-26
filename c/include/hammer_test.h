@@ -2,7 +2,7 @@
 // c/test.sh builds it with HAMMER_NATIVE and runs it:
 //
 //   #include "simple-grammar.c"
-//   #include "../include/hammer_test.h"
+//   #include "hammer_test.h"
 //
 //   int main(void) {
 //     HAMMER_EXPECT(0, "I saw the the cat.", "[the the]>the");
