@@ -37,15 +37,30 @@ static void reads_requests(void) {
   HAMMER_CHECK(!request.button.data && !request.state.data && !request.locale.data && !request.resumed);
   HAMMER_CHECK(!request.has_id);
 
-  static const char scalar[] = "{\"action\":\"a\",\"project\":\"p\",\"state\":7}";
+  static const char scalar[] = "{\"action\":\"a\",\"project\":\"p\",\"state\": -7 }";
   HAMMER_CHECK(hammer_action_read(scalar, strlen(scalar), &request));
-  HAMMER_CHECK(text_is(request.state, "7"));
+  HAMMER_CHECK(text_is(request.state, "-7"));
+
+  static const char string[] = "{\"action\":\"a\",\"project\":\"p\",\"state\":\"x}\\\"]\",\"resumed\":true}";
+  HAMMER_CHECK(hammer_action_read(string, strlen(string), &request));
+  HAMMER_CHECK(text_is(request.state, "\"x}\\\"]\"") && request.resumed);
+
+  static const char list[] = "{\"action\":\"a\",\"project\":\"p\",\"state\":[false,{\"a\":\"]\"}]}";
+  HAMMER_CHECK(hammer_action_read(list, strlen(list), &request));
+  HAMMER_CHECK(text_is(request.state, "[false,{\"a\":\"]\"}]"));
+
+  static const char cut[] = "{\"action\":\"a\",\"project\":\"p\",\"state\":{\"a\":1";
+  HAMMER_CHECK(!hammer_action_read(cut, strlen(cut), &request));
 }
 
 static void writes_replies(void) {
   HammerBuffer out = {0};
   hammer_put_message(&out, "Added \"Mara\"");
   HAMMER_CHECK(wrote(&out, "{\"message\":\"Added \\\"Mara\\\"\"}"));
+  hammer_put_message(&out, "Caf\xc3\xa9\t\\ \x01");
+  HAMMER_CHECK(wrote(&out, "{\"message\":\"Caf\xc3\xa9\\u0009\\\\ \\u0001\"}"));
+  hammer_put_message(&out, 0);
+  HAMMER_CHECK(wrote(&out, "{}"));
 
   hammer_put_document(&out, "# Report\nAll good.xyz", 18);
   HAMMER_CHECK(wrote(&out, "{\"page\":{\"markdown\":\"# Report\\u000aAll good.\"}}"));

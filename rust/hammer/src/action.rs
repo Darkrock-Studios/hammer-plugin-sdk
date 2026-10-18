@@ -158,7 +158,7 @@ impl Page {
 /// A field of a page. Its value comes back in the next call's input under its key: a string for
 /// `text` and `choice`, a bool, an integer, or for `scenes` a list of scene ids (one id or null when
 /// [Field::single]). Hammer checks `required`, an `int`'s bounds, and a `choice`'s options before
-/// calling.
+/// calling, unless the button pressed skips them.
 #[derive(Serialize, Clone)]
 pub struct Field {
     pub key: String,

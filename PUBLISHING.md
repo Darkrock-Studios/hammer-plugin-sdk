@@ -39,7 +39,8 @@ The easiest of the three: ComposeTextEditor already publishes to Maven Central u
 
 - **The kit** goes to Maven Central as `com.darkrockstudios.hammer:hammer-plugin-kit`, with the same
   plugin setup as ComposeTextEditor. Kotlin Multiplatform publishes the `jvm` and `wasmWasi` variants
-  and the root module, so a plugin's `commonMain` resolves the right one.
+  and the root module, so a plugin's `commonMain` resolves the right one. The `jvm` variant, which
+  plugins use for tests, also depends on tomlkt, for `ActionDriver` to read the manifest.
 - **The Gradle plugin** goes to the Gradle Plugin Portal with an id under a domain we own,
   `com.darkrockstudios.hammer.plugin`, since the Portal expects ids to be namespaced. `hammer.plugin`
   stays as a second id through 0.x so existing builds keep working. It keeps adding the kit by

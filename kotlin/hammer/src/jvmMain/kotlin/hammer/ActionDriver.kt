@@ -23,8 +23,9 @@ import net.peanuuutz.tomlkt.TomlTable
  * options) unless the button has `validate = false`; what they find is in [errors], and the handler is not
  * called. Each call carries the page's values and its state, and its reply is applied as Hammer would:
  * errors keep the page, its values, and its state; a page replaces the one showing; and `open`, or a
- * reply with none of these, ends the action. A reply Hammer would refuse, such as one with state over
- * 1 MiB, throws.
+ * reply with none of these, ends the action. Errors from a call made with no page showing end it too,
+ * their messages joining [messages]. A reply Hammer would refuse, such as one with state over 1 MiB,
+ * throws.
  *
  *     val wave = ActionDriver("wave", ::wave).open()
  *     wave.fill("name", "Mara").press("next")
@@ -48,7 +49,10 @@ class ActionDriver(
 	/** The page's values by field key, as the next call's input carries them. */
 	val values: Map<String, JsonElement> get() = _values
 
-	/** Messages shown under the page's fields by key, or for the whole page under `""`: Hammer's checks' or the plugin's. */
+	/**
+	 * Messages shown under the page's fields by key, or for the whole page under `""`: Hammer's checks' or
+	 * the plugin's. A plugin's errors for keys that are no field's are joined under `""`, as Hammer shows them.
+	 */
 	var errors: Map<String, String> = emptyMap()
 		private set
 
@@ -75,6 +79,7 @@ class ActionDriver(
 	/** Opens the action, as from its menu item: a fresh run, whatever came before. */
 	fun open(): ActionDriver {
 		page = null
+		_values.clear()
 		errors = emptyMap()
 		opened = null
 		ended = false
@@ -145,9 +150,10 @@ class ActionDriver(
 	}
 
 	private fun call(button: String?) {
+		val from = page
 		val request = ActionRequest(
 			action, project, settings, JsonObject(_values.toMap()), context, button,
-			changed = null, state = page?.state, resumed = resumed, locale = locale,
+			changed = null, state = from?.state, resumed = resumed, locale = locale,
 		)
 		resumed = false
 		_requests += request
@@ -157,7 +163,11 @@ class ActionDriver(
 		reply.message?.let { _messages += it }
 		errors = emptyMap()
 		when {
-			reply.errors.isNotEmpty() -> errors = reply.errors
+			reply.errors.isNotEmpty() && from != null -> errors = pageErrors(from, reply.errors)
+			reply.errors.isNotEmpty() -> {
+				_messages += reply.errors.values.filter { it.isNotBlank() }
+				end(null)
+			}
 			reply.open != null -> end(reply.open)
 			reply.page != null -> {
 				onManifestPage = false
@@ -227,6 +237,13 @@ class ActionDriver(
 				else -> JsonPrimitive(content)
 			}
 			TomlNull -> JsonNull
+		}
+
+		private fun pageErrors(page: ActionReply.Page, errors: Map<String, String>): Map<String, String> {
+			val keys = page.fields.mapTo(HashSet()) { it.key }
+			val (onFields, onPage) = errors.entries.partition { it.key.isNotEmpty() && it.key in keys }
+			val whole = onPage.map { it.value }.filter { it.isNotBlank() }.joinToString("\n")
+			return onFields.associate { it.key to it.value } + listOfNotNull(whole.takeIf { it.isNotEmpty() }?.let { "" to it })
 		}
 
 		private fun emptyValue(field: ActionReply.Field): JsonElement = when (field.type) {

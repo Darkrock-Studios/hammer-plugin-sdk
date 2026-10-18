@@ -338,7 +338,7 @@ static inline void hammer_put_document(HammerBuffer *out, const char *markdown, 
 }
 
 // Writes a reply that keeps the user on the page they were on, with what they entered and its state,
-// showing each error under its field.
+// showing each error under its field. With no errors, or no page to keep, the action ends.
 static inline void hammer_put_errors(HammerBuffer *out, const HammerError *errors, uint32_t count, const char *message) {
   hammer_put_text(out, "{\"errors\":{");
   for (uint32_t i = 0; i < count; i++) {

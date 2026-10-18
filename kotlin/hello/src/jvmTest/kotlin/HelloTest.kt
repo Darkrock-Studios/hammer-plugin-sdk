@@ -99,6 +99,8 @@ class HelloTest {
 	fun `waving is in French for a French UI`() {
 		val wave = driver("wave", ::wave, locale = "fr-CA").open()
 		assertEquals("Suivant", wave.page?.buttons?.single()?.label)
+		wave.fill("name", "R2D2").press("next")
+		assertEquals(mapOf("name" to "Un nom n’a pas de chiffres"), wave.errors)
 		wave.fill("name", "Mara").press("next").press("wave")
 		assertEquals(listOf("Mara a salué"), wave.messages)
 	}

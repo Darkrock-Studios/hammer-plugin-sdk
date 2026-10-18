@@ -10,6 +10,7 @@ import kotlin.test.assertTrue
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -113,6 +114,41 @@ class ActionDriverTest {
 		assertEquals("Mara: wants", driver.page?.title)
 		assertEquals(JsonPrimitive("nothing"), driver.values["want"])
 		assertEquals("Mara", driver.state<Visit>()?.name)
+	}
+
+	@Test
+	fun `errors for no field of the page are shown for the whole page`() {
+		val driver = ActionDriver(
+			"odd",
+			{ ActionReply(errors = mapOf("name" to "Pick someone", "age" to "Too old", "" to "Try again")) },
+			fields = listOf(nameField),
+		).open()
+		driver.fill("name", "Mara").run()
+		assertEquals(mapOf("name" to "Pick someone", "" to "Too old\nTry again"), driver.errors)
+	}
+
+	@Test
+	fun `errors with no page to keep end the action`() {
+		val driver = ActionDriver("none", { ActionReply(errors = mapOf("" to "Nothing to do")) }).open()
+		assertTrue(driver.ended)
+		assertEquals(listOf("Nothing to do"), driver.messages)
+	}
+
+	@Test
+	fun `opening again starts afresh`() {
+		var calls = 0
+		val driver = ActionDriver("again", { request ->
+			calls++
+			if (request.button == null) {
+				ActionReply(ActionReply.Page(fields = listOf(nameField), buttons = listOf(ActionReply.Button("go", "Go")), state = stateOf(calls)))
+			} else {
+				null
+			}
+		}).open()
+		driver.fill("name", "Mara").open()
+		assertEquals(JsonObject(emptyMap()), driver.requests.last().input)
+		assertNull(driver.requests.last().state)
+		assertEquals(2, driver.state<Int>())
 	}
 
 	@Test

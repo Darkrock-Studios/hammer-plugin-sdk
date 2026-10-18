@@ -427,9 +427,10 @@ Button("back", request.say("Back", "Retour"), validate = false)
 `call<T>(operation, input)` runs one of Hammer's operations and reads its output; `callJson` gives the
 JSON as it is. A failure throws `OperationException`, and one the plugin lets escape is shown to the
 user as its message; an action can catch it and reply with `errors` instead, keeping the user on the
-page: `ActionReply(errors = mapOf("" to e.message.orEmpty()))`. The manifest's `permissions.operations` lists what a plugin may call: operation
-names, or a scope such as `content:read`. Deletes are only ever granted by name. `hammer help` lists
-every operation, and `ops.list` describes them.
+page: `ActionReply(errors = mapOf("" to e.message.orEmpty()))`. The manifest's
+`permissions.operations` lists what a plugin may call: operation names, or a scope such as
+`content:read`. Deletes are only ever granted by name. `hammer help` lists every operation, and
+`ops.list` describes them.
 
 The plugin's cache, `cacheGet` and `cacheSet`, keeps bytes between calls and runs, such as results
 worth not working out again; Hammer may drop any of it at any time.
