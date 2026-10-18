@@ -37,6 +37,10 @@ kotlin {
 		commonMain.dependencies {
 			api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 		}
+		jvmMain.dependencies {
+			// ActionDriver reads a plugin's manifest with the TOML parser Hammer itself uses.
+			implementation("net.peanuuutz.tomlkt:tomlkt:0.5.0")
+		}
 		jvmTest.dependencies {
 			implementation(kotlin("test"))
 		}

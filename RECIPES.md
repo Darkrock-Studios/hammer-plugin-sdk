@@ -45,7 +45,7 @@ actions tells them apart by name in its one `action` export. `kotlin/hello`'s
 
 `settings.toml` declares settings Hammer shows as a form in Settings, Plugins; every request carries
 their values. Types are `bool`, `int` (with `min` and `max`), `string` (with `multiline`), and `choice`
-(with `options`).
+(with `options`). An action's fields are much the same, with `text` in place of `string`.
 
 ```toml
 [[setting]]
@@ -93,7 +93,8 @@ Set `input = "prose"` on the exporter to get each scene as parsed blocks instead
 
 ## An action with a message
 
-Adds an item to Project Home's menu. Whatever it returns is shown briefly.
+Adds an item to Project Home's menu. Every action replies with an `ActionReply`, and
+`ActionReply.message` is a line shown briefly as the action ends.
 
 ```toml
 [[actions]]
@@ -102,7 +103,7 @@ label = "Say hello"
 ```
 
 ```kotlin
-fun greet(request: ActionRequest): String = "${request.settings<HelloSettings>().greeting}, ${request.project}!"
+fun greet(request: ActionRequest): ActionReply = ActionReply.message("${request.settings<HelloSettings>().greeting}, ${request.project}!")
 
 @WasmExport
 fun action(): Int = action { request ->
@@ -113,16 +114,17 @@ fun action(): Int = action { request ->
 }
 ```
 
+Returning null ends the action without a word.
+
 ## An action with a document, calling Hammer
 
-`output = "document"` shows the returned markdown in a dialog the user can copy or save as a note. The
-action reads the project through Hammer's operations, which the manifest must ask for.
+`ActionReply.document` shows markdown in the action's dialog, where the user can copy it or save it as
+a note. The action reads the project through Hammer's operations, which the manifest must ask for.
 
 ```toml
 [[actions]]
 name = "outline"
 label = "Hello outline"
-output = "document"
 ```
 
 ```kotlin
@@ -132,23 +134,42 @@ class SceneTree(val nodes: List<Node>) {
 	class Node(val id: Int, val name: String, val kind: String, val children: List<Node> = emptyList())
 }
 
-fun outline(request: ActionRequest): String = buildString {
-	appendLine("# ${request.project}")
-	fun write(nodes: List<SceneTree.Node>, depth: Int) {
-		nodes.forEach { node ->
-			appendLine("  ".repeat(depth) + "- ${node.name}")
-			write(node.children, depth + 1)
+fun outline(request: ActionRequest): ActionReply = ActionReply.document(
+	buildString {
+		appendLine("# ${request.project}")
+		fun write(nodes: List<SceneTree.Node>, depth: Int) {
+			nodes.forEach { node ->
+				appendLine("  ".repeat(depth) + "- ${node.name}")
+				write(node.children, depth + 1)
+			}
 		}
-	}
-	write(call<SceneTree>("scene.tree", buildJsonObject { put("project", request.project) }).nodes, 0)
-}
+		write(call<SceneTree>("scene.tree", buildJsonObject { put("project", request.project) }).nodes, 0)
+	},
+)
 ```
 
 ## An action with fields, on more screens, reporting progress
 
 `places` puts the action on other screens' menus as well: `project`, `scene`, `note`, `entry`, and
-`event`. `request.context` says which it was run from and the id of the item there. `[[actions.field]]`
-tables are asked for first, in a dialog: the settings types, or `scenes`, picked from the project's tree.
+`event`. `request.context` says which it was run from and the id of the item there.
+
+`[[actions.field]]` tables are the action's first page: Hammer shows them with a Run button and calls
+the action with their values in `request.input`; an action without them is called as soon as it is
+picked. Field types are:
+
+| `type` | Value | Keys |
+| --- | --- | --- |
+| `text` | A string | `format`: `plain` (the default), or `rich` or `rich-extended` for the scene editor, whose value is markdown; `multiline` for plain |
+| `bool` | true or false | |
+| `int` | A number | `min`, `max` |
+| `choice` | The picked option's `value` | `options`, a list of `{ value, label }` |
+| `scenes` | A list of scene ids, picked from the project's tree | `multiple = false` for one id, or null |
+
+Every field has a `key` and a `label`, and may have a `hint` and a `default`, its starting value;
+`required = true` insists on a text that is not blank, or at least one scene. Hammer checks these, an
+int's bounds, and a choice's options before calling. Action fields say `text` where settings say
+`string`.
+
 A long action calls `progress`, which Hammer shows with a Stop button; when the user stops it, the call
 never returns.
 
@@ -156,12 +177,11 @@ never returns.
 [[actions]]
 name = "count"
 label = "Count words"
-output = "document"
 places = ["project", "scene"]
 
 [[actions.field]]
 key = "scenes"
-type = "scenes"          # a list of scene ids; `multiple = false` for one, `required = true` to insist
+type = "scenes"
 label = "Scenes"
 hint = "Leave empty for the whole story, or the scene you are in."
 ```
@@ -171,12 +191,12 @@ hint = "Leave empty for the whole story, or the scene you are in."
 class CountInput(val scenes: List<Int> = emptyList())
 
 // tree() and flatten() are small helpers in Hello.kt, reading scene.tree as outline does.
-fun countWords(request: ActionRequest): String {
+fun countWords(request: ActionRequest): ActionReply {
 	val here = request.context.id.takeIf { request.context.place == "scene" }
 	val chosen = request.input<CountInput>().scenes.ifEmpty { listOfNotNull(here) }
 	val scenes = tree(request.project).nodes.flatMap { it.flatten() }
 		.filter { it.kind == "scene" && (chosen.isEmpty() || it.id in chosen) }
-	return buildString {
+	val counts = buildString {
 		appendLine("# Word counts")
 		scenes.forEachIndexed { i, scene ->
 			progress(i.toDouble() / scenes.size, "Counting ${scene.name}")
@@ -187,37 +207,111 @@ fun countWords(request: ActionRequest): String {
 			appendLine("- ${scene.name}: ${text.markdown.split(' ', '\n', '\t').count { it.isNotBlank() }}")
 		}
 	}
+	return ActionReply.document(counts)
 }
 ```
 
-## An action with buttons
+## Pages, buttons, and state
 
-`output = "interactive"` returns an `ActionReply`: markdown shown with buttons under it. Pressing one
-calls the action again with the same input and the button's id in `request.button`. A reply with
-markdown updates the dialog, and one without closes it; a `message` is shown either way. Anything the
-next call needs, such as a random seed, can ride in the button's id. A button with `footer = true` sits
-in the dialog's footer beside Copy and Save, for one that acts on the whole reply, such as a fresh list.
+A reply's `Page` is what the action's dialog shows next: a `title`, `markdown`, `fields` made with
+`Field.text`, `bool`, `int`, `choice`, and `scenes` (the same as the manifest's), and `buttons`. Pressing
+a button calls the action again with its id in `request.button` and the page's values in
+`request.input`. A `primary` button is the one to press; an `inline` one sits under the markdown, for
+acting on something in it, and the rest sit in the dialog's footer.
+
+A module keeps nothing between calls, so a page carries what the next call needs in its `state`:
+`stateOf(value)` writes any `@Serializable` value, and `request.state<T>()` reads it back from the next
+request, giving null when there is none or it no longer reads as a `T`. Hammer never reads it, and
+fails a call whose state is over 1 MiB.
+
+Hammer checks a page's fields before calling, as it does the manifest's. Anything else is the plugin's
+to check, and it answers with `errors`: messages by field key, or `""` for the whole page. The user
+stays on the page with what they entered, and its state, to put it right. A button with
+`validate = false`, such as Back or Cancel, skips Hammer's checks.
+
+A reply with no `page`, `errors`, or `open` ends the action. `wave` asks for a name on one page and how
+many waves on the next:
 
 ```toml
 [[actions]]
 name = "wave"
 label = "Wave"
-output = "interactive"
 ```
 
 ```kotlin
-fun wave(request: ActionRequest): ActionReply = when (request.button) {
-	null -> ActionReply(
-		markdown = "Hello from **${request.project}**. Wave back?",
-		buttons = listOf(ActionReply.Button("once", "Wave"), ActionReply.Button("twice", "Wave twice")),
-	)
-	"twice" -> ActionReply(message = "You waved twice")
-	else -> ActionReply(message = "You waved")
-}
+@Serializable
+class WaveName(val name: String)
 
-// In the action export's `when`:
-"wave" -> wave(request).toJson()
+@Serializable
+class WaveTimes(val times: Int)
+
+@Serializable
+class Wave(val name: String)
+
+fun wave(request: ActionRequest): ActionReply? = when (request.button) {
+	null, "back" -> ActionReply(
+		Page(
+			markdown = "Hello from **${request.project}**. Who is waving?",
+			fields = listOf(Field.text("name", "Your name", required = true, default = request.state<Wave>()?.name)),
+			buttons = listOf(Button("next", "Next", primary = true)),
+		),
+	)
+	"next" -> {
+		val name = request.input<WaveName>().name.trim()
+		if (name.any { it.isDigit() }) {
+			ActionReply(errors = mapOf("name" to "A name has no digits"))
+		} else {
+			ActionReply(
+				Page(
+					markdown = "Hello, **$name**. Wave back?",
+					fields = listOf(Field.int("times", "Waves", min = 1, max = 3)),
+					buttons = listOf(Button("back", "Back", validate = false), Button("wave", "Wave", primary = true)),
+					state = stateOf(Wave(name)),
+				),
+			)
+		}
+	}
+	"wave" -> {
+		val name = request.state<Wave>()?.name.orEmpty()
+		val times = request.input<WaveTimes>().times
+		ActionReply.message(if (times == 1) "$name waved" else "$name waved $times times")
+	}
+	else -> null
+}
 ```
+
+`Page`, `Field`, and `Button` are `ActionReply.Page`, `ActionReply.Field`, and `ActionReply.Button`,
+imported by those names. A page with markdown and no fields, as `ActionReply.document` makes, is offered
+for copying and saving as a note, buttons or not. C writes the same replies with `hammer_action.h`'s
+`hammer_put_message`, `hammer_put_document`, `hammer_put_page`, `hammer_put_errors`, and
+`hammer_put_open`; Rust has `hammer::action`'s `Reply`, `Page`, `Field`, `Button`, and `Open`.
+
+## Opening what it made
+
+`open` ends the action and takes the user to an item: `ActionReply.Open(place, id)`, with a place as in
+`places` and the id of the scene, note, entry, or event (none for `project`). A plugin that adds an
+entry can open it, with a message saying so:
+
+```kotlin
+@Serializable
+class Created(val id: Int)
+
+val entry = call<Created>("entry.create", buildJsonObject {
+	put("project", request.project)
+	put("type", "person")
+	put("name", name)
+	put("text", text)
+})
+ActionReply(message = "Added $name", open = ActionReply.Open("entry", entry.id))
+```
+
+## A run the user can leave
+
+An action whose manifest entry sets `keep = true` keeps its run when the user closes the dialog: opening
+the action again from the same place brings back the page they were on and what they had entered, and
+the next call has `request.resumed` set. The run ends as any other does, by a reply that ends the
+action or opens something. Keep it for an action that asks for work worth keeping, such as answers to
+an interview; a report or a list of names is better run fresh.
 
 ## Resources
 
@@ -233,7 +327,8 @@ label = "Writing tip"
 ```
 
 ```kotlin
-fun tip(): String = resourceText("tips.txt").orEmpty().lines().filter { it.isNotBlank() }.randomOrNull() ?: "No tips today"
+fun tip(): ActionReply =
+	ActionReply.message(resourceText("tips.txt").orEmpty().lines().filter { it.isNotBlank() }.randomOrNull() ?: "No tips today")
 ```
 
 `resource(name)` gives the bytes, and both give null for a file that isn't there. In JVM tests,
@@ -322,15 +417,17 @@ What the plugin writes at run time is its own to translate: every request carrie
 language tag, which is not the project's `language`, the one the story is written in.
 
 ```kotlin
-val french = request.locale?.startsWith("fr") == true
-ActionReply(message = if (french) "Vous avez salué" else "You waved")
+private fun ActionRequest.say(english: String, french: String) = if (locale?.startsWith("fr") == true) french else english
+
+Button("back", request.say("Back", "Retour"), validate = false)
 ```
 
 ## Calling Hammer
 
 `call<T>(operation, input)` runs one of Hammer's operations and reads its output; `callJson` gives the
 JSON as it is. A failure throws `OperationException`, and one the plugin lets escape is shown to the
-user as its message. The manifest's `permissions.operations` lists what a plugin may call: operation
+user as its message; an action can catch it and reply with `errors` instead, keeping the user on the
+page: `ActionReply(errors = mapOf("" to e.message.orEmpty()))`. The manifest's `permissions.operations` lists what a plugin may call: operation
 names, or a scope such as `content:read`. Deletes are only ever granted by name. `hammer help` lists
 every operation, and `ops.list` describes them.
 
@@ -344,6 +441,22 @@ progress:
 
 ```kotlin
 host = FakeHammerHost(mapOf("scene.read" to { _ -> buildJsonObject { put("markdown", "Rain fell hard.") } }))
+```
+
+`ActionDriver` runs an action as Hammer does, over as many calls as a test needs. `open()` shows the
+manifest's fields for the action, read from the plugin's `manifest.toml`, or calls at once when it has
+none. `fill(key, value)` sets a field, `run()` presses Run on the manifest's page, and `press(id)` presses
+a page's button, after Hammer's checks unless the button skips them. Each call carries the page's state
+on, and the reply is applied as Hammer applies it, so a test reads what the user would see: `page`,
+`values`, `errors`, `messages`, `ended`, and `opened`, with `state<T>()` reading the page's state.
+`resume()` stands for closing the dialog and opening the action again, so the next call is `resumed`.
+
+```kotlin
+val wave = ActionDriver("wave", ::wave, project = "Storm").open()
+wave.fill("name", "Mara").press("next")
+assertEquals("Mara", wave.state<Wave>()?.name)
+wave.fill("times", 2).press("wave")
+assertEquals(listOf("Mara waved 2 times"), wave.messages)
 ```
 
 `gradle :hello:jvmTest` runs [HelloTest](kotlin/hello/src/jvmTest/kotlin/HelloTest.kt).

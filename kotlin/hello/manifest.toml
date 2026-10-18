@@ -20,12 +20,10 @@ label = "Say hello"
 [[actions]]
 name = "outline"
 label = "Hello outline"
-output = "document"
 
 [[actions]]
 name = "count"
 label = "Count words"
-output = "document"
 places = ["project", "scene"]
 
 [[actions.field]]
@@ -41,7 +39,6 @@ label = "Writing tip"
 [[actions]]
 name = "wave"
 label = "Wave"
-output = "interactive"
 
 [[diagnostics]]
 name = "very"

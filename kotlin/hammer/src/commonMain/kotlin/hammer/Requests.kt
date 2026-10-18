@@ -1,9 +1,14 @@
 package hammer
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 
 /** A request carrying the plugin's settings: each declared setting's current value. */
 interface WithSettings {
@@ -43,11 +48,17 @@ class ActionRequest(
 	val action: String,
 	val project: String,
 	override val settings: JsonObject = JsonObject(emptyMap()),
-	/** A value for each of the action's `[[actions.field]]`s. */
+	/** A value for each field of the page the user was on; on the first call, the action's `[[actions.field]]`s. */
 	val input: JsonObject = JsonObject(emptyMap()),
 	val context: Context = Context(),
-	/** The id of the button pressed, for an interactive action's later calls; null on the first. */
+	/** The id of the button pressed; null on the first call, which opens the action or runs the manifest's fields. */
 	val button: String? = null,
+	/** Reserved for fields that call the action when they change; always null. */
+	val changed: String? = null,
+	/** The last page's [ActionReply.Page.state], as it was written; null on the first call. See [state]. */
+	val state: JsonElement? = null,
+	/** Set on the first call after Hammer restored a run the user had left. */
+	val resumed: Boolean = false,
 	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
 	val locale: String? = null,
 ) : WithSettings {
@@ -56,26 +67,171 @@ class ActionRequest(
 	class Context(val place: String = "project", val id: Int? = null)
 }
 
-/** The action's input read into a `T`, a `@Serializable` class with a property per field. */
+/** The action's input read into a `T`, a `@Serializable` class with a property per field of the page. */
 inline fun <reified T> ActionRequest.input(): T = json.decodeFromJsonElement(input)
 
+/** The request's state read into a `T`, as [stateOf] wrote it: null when there is none, or it is not a `T`. */
+inline fun <reified T> ActionRequest.state(): T? = decodeState(state)
+
+@PublishedApi
+internal inline fun <reified T> decodeState(state: JsonElement?): T? {
+	if (state == null || state == JsonNull) return null
+	return try {
+		json.decodeFromJsonElement<T>(state)
+	} catch (e: IllegalArgumentException) {
+		null
+	}
+}
+
+/** [value] as JSON, for a page's [ActionReply.Page.state]; [ActionRequest.state] reads it back. */
+inline fun <reified T> stateOf(value: T): JsonElement = json.encodeToJsonElement(value)
+
 /**
- * What an `interactive` action returns: [markdown] shown with [buttons] under it, each calling the
- * action again with its id as [ActionRequest.button], and a [message] shown briefly. No markdown
- * closes the dialog.
+ * What the `action` export returns; every part is optional, and the default ends the action without a
+ * word. A [page] is shown in the action's dialog, where pressing one of its buttons calls the action
+ * again with the button's id, the page's values as [ActionRequest.input], and the page's state. A
+ * [message] is shown briefly, whatever else the reply does. [errors] keep the user on the page they
+ * were on, with what they entered and its state; [open] ends the action and goes to an item. A reply
+ * with none of [page], [errors], or [open] ends the action.
  */
 @Serializable
 class ActionReply(
-	val markdown: String? = null,
-	val buttons: List<Button> = emptyList(),
+	val page: Page? = null,
 	val message: String? = null,
+	/** Messages by field key, shown under each field; a key of `""`, or one that is no field's, is shown for the whole page. */
+	val errors: Map<String, String> = emptyMap(),
+	val open: Open? = null,
 ) {
-	/** A button; one with [footer] sits in the dialog's footer, for acting on the whole reply, such as a fresh list. */
+	/** What the dialog shows: [title], [markdown], the [fields] in order, and [buttons]. */
 	@Serializable
-	class Button(val id: String, val label: String, val footer: Boolean = false)
+	class Page(
+		val title: String? = null,
+		val markdown: String? = null,
+		val fields: List<Field> = emptyList(),
+		val buttons: List<Button> = emptyList(),
+		/**
+		 * Handed back untouched as the next call's [ActionRequest.state], usually from [stateOf]. Hammer
+		 * never reads it, and fails a call whose state is over 1 MiB as JSON.
+		 */
+		val state: JsonElement? = null,
+	)
 
-	/** What an `interactive` action's `action` export returns. */
+	/**
+	 * A field of a page, made by [text], [bool], [int], [choice], or [scenes]. Its value comes back in the
+	 * next call's input under [key]: a string for text and choice, a bool, an integer, or for scenes a list
+	 * of scene ids (one id or null when not [multiple]). Hammer checks [required], an int's bounds, and a
+	 * choice's options before calling, unless the button pressed skips them.
+	 */
+	@Serializable
+	class Field private constructor(
+		val key: String,
+		/** `text`, `bool`, `int`, `choice`, or `scenes`. */
+		val type: String,
+		val label: String,
+		val hint: String? = null,
+		/** For text, not blank; for scenes, not empty. */
+		val required: Boolean = false,
+		/** The initial value; null for the type's own: false, [min] or 0, the first option, "", or none. */
+		val default: JsonElement? = null,
+		val min: Int? = null,
+		val max: Int? = null,
+		val options: List<Option> = emptyList(),
+		val format: TextFormat = TextFormat.Plain,
+		val multiline: Boolean = false,
+		val multiple: Boolean = true,
+	) {
+		/** One of a choice's options: [value] is what comes back in the input, [label] what is shown. */
+		@Serializable
+		class Option(val value: String, val label: String)
+
+		companion object {
+			/** Text, edited as [format] says; [multiline] is for plain text. */
+			fun text(
+				key: String,
+				label: String,
+				hint: String? = null,
+				required: Boolean = false,
+				default: String? = null,
+				format: TextFormat = TextFormat.Plain,
+				multiline: Boolean = false,
+			) = Field(key, "text", label, hint, required, default?.let(::JsonPrimitive), format = format, multiline = multiline)
+
+			fun bool(key: String, label: String, hint: String? = null, default: Boolean? = null) =
+				Field(key, "bool", label, hint, default = default?.let(::JsonPrimitive))
+
+			fun int(key: String, label: String, hint: String? = null, default: Int? = null, min: Int? = null, max: Int? = null) =
+				Field(key, "int", label, hint, default = default?.let(::JsonPrimitive), min = min, max = max)
+
+			/** A choice of [options], at least one; [default] is an option's value. */
+			fun choice(key: String, label: String, options: List<Option>, hint: String? = null, default: String? = null) =
+				Field(key, "choice", label, hint, default = default?.let(::JsonPrimitive), options = options)
+
+			/**
+			 * Scenes picked from the project's tree: a list of ids, or with [multiple] false, one id or null.
+			 * [default] is the ids picked at first, at most one when not [multiple].
+			 */
+			fun scenes(
+				key: String,
+				label: String,
+				hint: String? = null,
+				required: Boolean = false,
+				multiple: Boolean = true,
+				default: List<Int>? = null,
+			): Field {
+				val initial = default?.let { ids ->
+					if (multiple) JsonArray(ids.map(::JsonPrimitive)) else ids.singleOrNull()?.let(::JsonPrimitive) ?: JsonNull
+				}
+				return Field(key, "scenes", label, hint, required, initial, multiple = multiple)
+			}
+		}
+	}
+
+	/**
+	 * A button of a page: pressing it calls the action again with [id] as [ActionRequest.button]. It sits
+	 * in the dialog's footer, or when [inline] under the markdown, for acting on something in it. With
+	 * [validate] false, Hammer calls without checking the fields, as it should for Back or Cancel.
+	 */
+	@Serializable
+	class Button(
+		val id: String,
+		val label: String,
+		val primary: Boolean = false,
+		val inline: Boolean = false,
+		val validate: Boolean = true,
+	)
+
+	/**
+	 * An item for Hammer to go to: [place] is `project`, `scene`, `note`, `entry`, or `event`, and [id] the
+	 * item's (null for `project`). An id that does not exist fails.
+	 */
+	@Serializable
+	class Open(val place: String, val id: Int? = null)
+
+	/** What the `action` export returns for this reply, without the parts left unset. */
 	fun toJson(): String = json.encodeToString(serializer(), this)
+
+	companion object {
+		/** Ends the action, showing [message] briefly. */
+		fun message(message: String) = ActionReply(message = message)
+
+		/** Shows [markdown] alone, a report the user can copy or save as a note. */
+		fun document(markdown: String, title: String? = null) = ActionReply(Page(title = title, markdown = markdown))
+	}
+}
+
+/** What edits a text field: an ordinary text field, or the scene editor's, whose value is markdown. */
+@Serializable
+enum class TextFormat {
+	@SerialName("plain")
+	Plain,
+
+	/** The scene editor with its format bar. */
+	@SerialName("rich")
+	Rich,
+
+	/** The scene editor with the extended format bar: highlight, task lists, and tables. */
+	@SerialName("rich-extended")
+	RichExtended,
 }
 
 /** What the `diagnose` export is given: paragraphs of plain text to check for one of the manifest's `[[diagnostics]]`. */

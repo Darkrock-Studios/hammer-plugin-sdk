@@ -1,6 +1,9 @@
 // One small example of each kind of plugin, for RECIPES.md. Each function is an export's body; the
 // wasm exports in Exports.kt pass it the request.
 import hammer.ActionReply
+import hammer.ActionReply.Button
+import hammer.ActionReply.Field
+import hammer.ActionReply.Page
 import hammer.ActionRequest
 import hammer.CommandRequest
 import hammer.DiagnoseRequest
@@ -12,6 +15,8 @@ import hammer.input
 import hammer.progress
 import hammer.resourceText
 import hammer.settings
+import hammer.state
+import hammer.stateOf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -28,8 +33,8 @@ fun helloExport(request: ExportRequest): String {
 	}
 }
 
-// A `message` action: a line the user sees briefly.
-fun greet(request: ActionRequest): String = "${request.settings<HelloSettings>().greeting}, ${request.project}!"
+// An action that replies with a message: a line the user sees briefly.
+fun greet(request: ActionRequest): ActionReply = ActionReply.message("${request.settings<HelloSettings>().greeting}, ${request.project}!")
 
 @Serializable
 class SceneTree(val nodes: List<Node>) {
@@ -41,17 +46,20 @@ private fun tree(project: String) = call<SceneTree>("scene.tree", buildJsonObjec
 
 private fun SceneTree.Node.flatten(): List<SceneTree.Node> = listOf(this) + children.flatMap { it.flatten() }
 
-// A `document` action: markdown the user can copy or save as a note. It calls Hammer's operations.
-fun outline(request: ActionRequest): String = buildString {
-	appendLine("# ${request.project}")
-	fun write(nodes: List<SceneTree.Node>, depth: Int) {
-		nodes.forEach { node ->
-			appendLine("  ".repeat(depth) + "- ${node.name}")
-			write(node.children, depth + 1)
+// An action that replies with a document: markdown the user can copy or save as a note. It calls
+// Hammer's operations.
+fun outline(request: ActionRequest): ActionReply = ActionReply.document(
+	buildString {
+		appendLine("# ${request.project}")
+		fun write(nodes: List<SceneTree.Node>, depth: Int) {
+			nodes.forEach { node ->
+				appendLine("  ".repeat(depth) + "- ${node.name}")
+				write(node.children, depth + 1)
+			}
 		}
-	}
-	write(tree(request.project).nodes, 0)
-}
+		write(tree(request.project).nodes, 0)
+	},
+)
 
 @Serializable
 class CountInput(val scenes: List<Int> = emptyList())
@@ -60,12 +68,12 @@ class CountInput(val scenes: List<Int> = emptyList())
 private class SceneText(val markdown: String)
 
 // An action with a field, run from Project Home or a scene, that reports its progress.
-fun countWords(request: ActionRequest): String {
+fun countWords(request: ActionRequest): ActionReply {
 	val here = request.context.id.takeIf { request.context.place == "scene" }
 	val chosen = request.input<CountInput>().scenes.ifEmpty { listOfNotNull(here) }
 	val scenes = tree(request.project).nodes.flatMap { it.flatten() }
 		.filter { it.kind == "scene" && (chosen.isEmpty() || it.id in chosen) }
-	return buildString {
+	val counts = buildString {
 		appendLine("# Word counts")
 		scenes.forEachIndexed { i, scene ->
 			progress(i.toDouble() / scenes.size, "Counting ${scene.name}")
@@ -76,27 +84,66 @@ fun countWords(request: ActionRequest): String {
 			appendLine("- ${scene.name}: ${text.markdown.split(' ', '\n', '\t').count { it.isNotBlank() }}")
 		}
 	}
+	return ActionReply.document(counts)
 }
 
 // Reads a file the package ships in resources/: one tip a line, picked at random.
-fun tip(): String = resourceText("tips.txt").orEmpty().lines().filter { it.isNotBlank() }.randomOrNull() ?: "No tips today"
+fun tip(): ActionReply =
+	ActionReply.message(resourceText("tips.txt").orEmpty().lines().filter { it.isNotBlank() }.randomOrNull() ?: "No tips today")
 
-// An `interactive` action: markdown with buttons, each calling the action again with its id. What it
-// writes itself is in the UI's language, where it has one.
-fun wave(request: ActionRequest): ActionReply {
-	val french = request.locale?.startsWith("fr") == true
-	return when (request.button) {
-		null -> ActionReply(
-			markdown = if (french) "Bonjour de **${request.project}**. Rendre le salut ?" else "Hello from **${request.project}**. Wave back?",
-			buttons = listOf(
-				ActionReply.Button("once", if (french) "Saluer" else "Wave"),
-				ActionReply.Button("twice", if (french) "Saluer deux fois" else "Wave twice"),
+@Serializable
+class WaveName(val name: String)
+
+@Serializable
+class WaveTimes(val times: Int)
+
+@Serializable
+class Wave(val name: String)
+
+// An action of two pages. The first asks for a name, which the plugin checks itself, answering with
+// errors when it refuses one. The second carries the name in its state, and has Back, which skips
+// Hammer's checks of its field, and Wave, which ends the action with a message. What it writes itself is
+// in the UI's language, where it has one.
+fun wave(request: ActionRequest): ActionReply? = when (request.button) {
+	null, "back" -> ActionReply(
+		Page(
+			markdown = request.say("Hello from **${request.project}**. Who is waving?", "Bonjour de **${request.project}**. Qui salue ?"),
+			fields = listOf(
+				Field.text("name", request.say("Your name", "Votre nom"), required = true, default = request.state<Wave>()?.name),
 			),
-		)
-		"twice" -> ActionReply(message = if (french) "Vous avez salué deux fois" else "You waved twice")
-		else -> ActionReply(message = if (french) "Vous avez salué" else "You waved")
+			buttons = listOf(Button("next", request.say("Next", "Suivant"), primary = true)),
+		),
+	)
+	"next" -> {
+		val name = request.input<WaveName>().name.trim()
+		if (name.any { it.isDigit() }) {
+			ActionReply(errors = mapOf("name" to request.say("A name has no digits", "Un nom n’a pas de chiffres")))
+		} else {
+			ActionReply(
+				Page(
+					markdown = request.say("Hello, **$name**. Wave back?", "Bonjour, **$name**. Rendre le salut ?"),
+					fields = listOf(Field.int("times", request.say("Waves", "Saluts"), min = 1, max = 3)),
+					buttons = listOf(
+						Button("back", request.say("Back", "Retour"), validate = false),
+						Button("wave", request.say("Wave", "Saluer"), primary = true),
+					),
+					state = stateOf(Wave(name)),
+				),
+			)
+		}
 	}
+	"wave" -> {
+		val name = request.state<Wave>()?.name.orEmpty()
+		val times = request.input<WaveTimes>().times
+		ActionReply.message(
+			if (times == 1) request.say("$name waved", "$name a salué")
+			else request.say("$name waved $times times", "$name a salué $times fois"),
+		)
+	}
+	else -> null
 }
+
+private fun ActionRequest.say(english: String, french: String) = if (locale?.startsWith("fr") == true) french else english
 
 // A text check: underlines each "very", offering to remove it. Kotlin/Wasm's Regex is slow in Hammer's
 // interpreter, so it searches by hand.

@@ -7,9 +7,9 @@ author to need nothing but the published kit for their language. This is the pla
 
 | Language | What ships | Name today | Version today |
 | --- | --- | --- | --- |
-| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`) | `com.darkrockstudios.hammer:plugin-kit` | 0.4.0, in `kotlin/versions.properties` |
+| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`) | `com.darkrockstudios.hammer:plugin-kit` | 0.5.0, in `kotlin/versions.properties` |
 | Kotlin | The Gradle plugin, which adds the kit by those coordinates when no kit project is named | `hammer.plugin` | The kit's, compiled in |
-| Rust | The kit crate, and `rust/tools/finish.py` | `hammer` (already taken on crates.io) | 0.1.0 |
+| Rust | The kit crate, and `rust/tools/finish.py` | `hammer` (already taken on crates.io) | 0.2.0 |
 | C | The headers in `c/include`, `c/build.sh`, `c/test.sh` | None | None |
 | All | `tools/package.sh` | None | None |
 

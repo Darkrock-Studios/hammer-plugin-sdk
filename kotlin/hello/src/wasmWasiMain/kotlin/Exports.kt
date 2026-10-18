@@ -14,7 +14,7 @@ fun action(): Int = action { request ->
 		"outline" -> outline(request)
 		"count" -> countWords(request)
 		"tip" -> tip()
-		"wave" -> wave(request).toJson()
+		"wave" -> wave(request)
 		else -> null
 	}
 }

@@ -10,7 +10,7 @@
 //! pub extern "C" fn action() -> i32 {
 //!     hammer::run(|| {
 //!         let request: Request = hammer::input_json()?;
-//!         Ok(format!("Hello, {}", request.project))
+//!         Reply::message(format!("Hello, {}", request.project)).to_json()
 //!     })
 //! }
 //! ```

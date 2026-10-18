@@ -1,3 +1,5 @@
+import hammer.ActionDriver
+import hammer.ActionReply
 import hammer.ActionRequest
 import hammer.CommandRequest
 import hammer.DiagnoseRequest
@@ -7,7 +9,8 @@ import hammer.diagnoseReply
 import hammer.host
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlinx.serialization.json.JsonArray
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -39,40 +42,65 @@ class HelloTest {
 		),
 	).also { host = it }
 
-	private fun action(name: String, input: Map<String, JsonArray> = emptyMap(), button: String? = null, place: String = "project", id: Int? = null) =
-		ActionRequest(name, "Storm", settings, kotlinx.serialization.json.JsonObject(input), ActionRequest.Context(place, id), button)
+	private fun action(name: String) = ActionRequest(name, "Storm", settings)
+
+	private fun driver(name: String, handle: (ActionRequest) -> ActionReply?, place: String = "project", id: Int? = null, locale: String? = null) =
+		ActionDriver(name, handle, "Storm", settings, ActionRequest.Context(place, id), locale)
 
 	@Test
 	fun `exports, messages, and commands use the greeting setting`() {
 		assertEquals("Ahoy, Storm!\nOne: 2 scenes\n", helloExport(ExportRequest("hello.txt", "Storm", chapters = listOf(ExportRequest.Chapter("One", listOf("a", "b"))), settings = settings)))
-		assertEquals("Ahoy, Storm!", greet(action("greet")))
+		assertEquals("Ahoy, Storm!", greet(action("greet")).message)
 		assertEquals("Ahoy, Alice!", helloCommand(CommandRequest("hello", line = "Alice", settings = settings)))
 	}
 
 	@Test
 	fun `the outline follows the scene tree`() {
-		assertEquals("# Storm\n- Part One\n  - Storm\n  - Calm\n", outline(action("outline")))
+		assertEquals("# Storm\n- Part One\n  - Storm\n  - Calm\n", outline(action("outline")).page?.markdown)
 	}
 
 	@Test
 	fun `words are counted in the chosen scenes, or the scene it was run from, with progress`() {
-		assertEquals("# Word counts\n- Storm: 3\n", countWords(action("count", mapOf("scenes" to JsonArray(listOf(JsonPrimitive(2)))))))
-		assertEquals("# Word counts\n- Calm: 1\n", countWords(action("count", place = "scene", id = 3)))
-		assertEquals("# Word counts\n- Storm: 3\n- Calm: 1\n", countWords(action("count")))
+		val chosen = driver("count", ::countWords).open().fill("scenes", listOf(2)).run()
+		assertEquals("# Word counts\n- Storm: 3\n", chosen.page?.markdown)
+		assertEquals("# Word counts\n- Calm: 1\n", driver("count", ::countWords, place = "scene", id = 3).open().run().page?.markdown)
+		assertEquals("# Word counts\n- Storm: 3\n- Calm: 1\n", driver("count", ::countWords).open().run().page?.markdown)
 		assertEquals(listOf("Counting Storm", "Counting Calm"), fake.progress.takeLast(2).map { it["message"]!!.jsonPrimitive.content })
 	}
 
 	@Test
 	fun `a tip comes from the packaged tips`() {
-		assert(tip() in java.io.File("resources/tips.txt").readLines())
+		assert(tip().message in java.io.File("resources/tips.txt").readLines())
 	}
 
 	@Test
-	fun `waving shows buttons, and a button's id comes back`() {
-		assertEquals(listOf("once", "twice"), wave(action("wave")).buttons.map { it.id })
-		assertEquals("You waved twice", wave(action("wave", button = "twice")).message)
-		val french = ActionRequest("wave", "Storm", settings, button = "twice", locale = "fr-CA")
-		assertEquals("Vous avez salué deux fois", wave(french).message)
+	fun `waving asks a name, refuses one with digits, and carries it to the next page`() {
+		val wave = driver("wave", ::wave).open()
+		wave.press("next")
+		assertEquals(setOf("name"), wave.errors.keys)
+		wave.fill("name", "R2D2").press("next")
+		assertEquals(mapOf("name" to "A name has no digits"), wave.errors)
+
+		wave.fill("name", " Mara ").press("next")
+		assertEquals("Mara", wave.state<Wave>()?.name)
+		assertEquals(listOf("back", "wave"), wave.page?.buttons?.map { it.id })
+		wave.fill("times", 9).press("wave")
+		assertEquals(setOf("times"), wave.errors.keys)
+
+		wave.press("back")
+		assertEquals(JsonPrimitive("Mara"), wave.values["name"])
+		wave.press("next").fill("times", 2).press("wave")
+		assertTrue(wave.ended)
+		assertNull(wave.opened)
+		assertEquals(listOf("Mara waved 2 times"), wave.messages)
+	}
+
+	@Test
+	fun `waving is in French for a French UI`() {
+		val wave = driver("wave", ::wave, locale = "fr-CA").open()
+		assertEquals("Suivant", wave.page?.buttons?.single()?.label)
+		wave.fill("name", "Mara").press("next").press("wave")
+		assertEquals(listOf("Mara a salué"), wave.messages)
 	}
 
 	@Test

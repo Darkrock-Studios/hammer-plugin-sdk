@@ -9,7 +9,8 @@
 // memory, hammer_fail, resources, and what builds on them are there: no operations or cache.
 //
 // The rest of the kit: hammer_json.h reads JSON, hammer_out.h writes output, hammer_text.h finds
-// words in UTF-8 text, and hammer_diagnose.h does a `diagnose` export's reading and writing.
+// words in UTF-8 text, hammer_action.h reads an `action` export's request and writes its replies, and
+// hammer_diagnose.h does a `diagnose` export's reading and writing.
 //
 // Exports a plugin can provide. Each is also given "locale": the UI's BCP 47 tag, such as "fr-CA", or
 // null, for replying in the user's language. The manifest's and settings' words are translated by
@@ -26,13 +27,18 @@
 //   action  Runs an action the manifest declares under [[actions]], from the menu of a screen in
 //           its `places` (project, scene, note, entry, event). Input is JSON:
 //           {"action": "<name>", "project": "<name>", "settings": {...}, "input": {...},
-//            "context": {"place": "scene", "id": 12}, "button": null}. "input" has a value for each
-//           of the action's [[actions.field]]s, and "context" the screen and the id of the item it
-//           shows (null on the project's). Output, if any, is shown when it finishes: `message` as a
-//           brief line, `document` as markdown in a dialog, or `interactive` as JSON
-//           {"markdown": "...", "buttons": [{"id": "...", "label": "..."}], "message": "..."}, where
-//           pressing a button calls the action again with its id as "button". Report progress on a
-//           long run with hammer_progress.
+//            "context": {"place": "scene", "id": 12}, "button": null, "changed": null,
+//            "state": null, "resumed": false}. "context" is the screen and the id of the item it
+//           shows (null on the project's). The first call has no button, and "input" has a value for
+//           each of the action's [[actions.field]]s. Output is a reply object, every key optional:
+//           {"page": {"title": "...", "markdown": "...", "fields": [...], "buttons": [...],
+//           "state": ...}, "message": "...", "errors": {"<field>": "..."},
+//           "open": {"place": "entry", "id": 12}}. A page is shown in the action's dialog; pressing
+//           one of its buttons calls the action again with the button's id, the page's values as
+//           "input", and the page's "state". A message is shown briefly. "errors" keep the user on
+//           the page they were on, "open" ends the action and goes to an item, and a reply with none
+//           of page, errors, or open, or no output at all, ends it. hammer_action.h reads the request
+//           and writes replies. Report progress on a long run with hammer_progress.
 //   command Answers one line of standard input to a command the manifest declares under
 //           [[commands]]. Input is JSON: {"command": "<name>", "args": [...], "settings": {...},
 //           "line": "..."}. Output, if any, is written as one line of standard output.

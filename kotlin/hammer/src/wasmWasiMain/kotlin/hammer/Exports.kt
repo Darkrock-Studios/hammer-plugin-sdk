@@ -9,16 +9,13 @@ import kotlinx.serialization.decodeFromString
 // Bodies for a plugin's exports, which must be top-level functions in the plugin itself:
 //
 //     @WasmExport
-//     fun action(): Int = action { request -> report(request.project) }
+//     fun action(): Int = action { request -> ActionReply.document(report(request.project)) }
 
 /** The `export` export's body: [render] returns the file's bytes. */
 fun exporter(render: (ExportRequest) -> ByteArray): Int = runBytes { render(json.decodeFromString(inputText())) }
 
-/**
- * The `action` export's body: [handle] returns what the user sees, or null for nothing. For an
- * `interactive` action, that is an [ActionReply]'s [toJson].
- */
-fun action(handle: (ActionRequest) -> String?): Int = run { handle(json.decodeFromString(inputText())).orEmpty() }
+/** The `action` export's body: [handle] returns the reply, or null to end the action without a word. */
+fun action(handle: (ActionRequest) -> ActionReply?): Int = run { handle(json.decodeFromString(inputText()))?.toJson().orEmpty() }
 
 /** The `diagnose` export's body: [check] returns the issues in the request's paragraphs. */
 fun diagnose(check: (DiagnoseRequest) -> List<Diagnostic>): Int = run {
