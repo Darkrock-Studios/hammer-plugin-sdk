@@ -26,9 +26,8 @@ import net.peanuuutz.tomlkt.TomlTable
  * exist, or their entry types and tags, so a test fills in what the user could pick. Each call carries
  * the page's values and its state, and its reply is applied as Hammer would: errors keep the page, its
  * values, and its state; a page replaces the one showing; and `open`, or a reply with none of these,
- * ends the action. Errors from a call made with no page showing end it too,
- * their messages joining [messages]. A reply Hammer would refuse, such as one with state over 1 MiB,
- * throws.
+ * ends the action. Errors from a call made with no page showing end it too, their messages joining
+ * [messages]. A reply Hammer would refuse, such as one with state over 1 MiB, throws.
  *
  *     val wave = ActionDriver("wave", ::wave).open()
  *     wave.fill("name", "Mara").press("next")

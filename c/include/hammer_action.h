@@ -159,7 +159,10 @@ static inline int hammer_entity_read(HammerJson *json, HammerText *kind, int64_t
       hammer_json_skip(json);
     }
   }
-  return !json->error && kind->data && has_id;
+  if (!json->error && kind->data && has_id) return 1;
+  *kind = (HammerText){0, 0};
+  *id = 0;
+  return 0;
 }
 
 // A single entity field's pick: its kind and id, and 1; 0 when the field is null or not there.
@@ -220,7 +223,7 @@ typedef struct {
   HammerTextFormat format;
   // A plain text field of several lines.
   int multiline;
-  // Scenes as one scene instead of a list.
+  // Scenes as one scene instead of a list; only scenes read it.
   int single;
   // An entity's kinds of item: scene, note, entry, or event; all four when kind_count is 0.
   const char *const *kinds;
@@ -232,7 +235,8 @@ typedef struct {
   // Tags an entity's item needs one of; any item when tag_count is 0.
   const char *const *tags;
   uint32_t tag_count;
-  // An entity as a list of picks instead of one.
+  // An entity as a list of picks instead of one; only an entity reads it, since scenes are a list unless
+  // single.
   int multiple;
 } HammerField;
 
@@ -329,8 +333,8 @@ static inline void hammer_put_field(HammerBuffer *out, const HammerField *field)
   hammer_put_json_texts(out, ",\"kinds\":", field->kinds, field->kind_count);
   hammer_put_json_texts(out, ",\"entry_types\":", field->entry_types, field->entry_type_count);
   hammer_put_json_texts(out, ",\"tags\":", field->tags, field->tag_count);
-  if (field->single) hammer_put_text(out, ",\"multiple\":false");
-  if (field->multiple) hammer_put_text(out, ",\"multiple\":true");
+  if (field->type == HAMMER_FIELD_SCENES && field->single) hammer_put_text(out, ",\"multiple\":false");
+  if (field->type == HAMMER_FIELD_ENTITY && field->multiple) hammer_put_text(out, ",\"multiple\":true");
   hammer_put_char(out, '}');
 }
 

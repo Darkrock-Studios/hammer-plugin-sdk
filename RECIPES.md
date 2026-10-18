@@ -168,8 +168,8 @@ picked. Field types are:
 
 Every field has a `key` and a `label`, and may have a `hint` and a `default`, its starting value;
 `required = true` insists on a text that is not blank, at least one scene, or an item picked. Hammer
-checks these, an int's bounds, a choice's options, and an entity's picks before calling. Action fields say `text` where settings say
-`string`.
+checks these, an int's bounds, a choice's options, and an entity's picks before calling. Action fields
+say `text` where settings say `string`.
 
 A long action calls `progress`, which Hammer shows with a Stop button; when the user stops it, the call
 never returns.
@@ -224,7 +224,8 @@ it says otherwise. A `default` has the value's shape.
 
 Before calling, Hammer checks that each item picked still exists and matches the field's filters, and
 shows a default that is gone or does not match as empty. Read the value into an `EntityRef`, whose
-`kind` and `id` go to the operations for that kind, or to `ActionReply.Open`:
+`kind` and `id` go to the operations for that kind, or to `ActionReply.Open`. This one reads a
+character with `entry.read`, which the manifest's `permissions.operations` needs:
 
 ```toml
 [[actions]]
@@ -267,16 +268,16 @@ fun about(request: ActionRequest): ActionReply {
 `who` is never null here, since the field is required and Run checks it; a field that may be left
 empty reads as `EntityRef?`, and one with `multiple` as `List<EntityRef>`. On a page,
 `Field.entity("who", "Character", kinds = listOf("entry"), entryTypes = listOf("person"), default = here)`
-makes the same field, starting with `here` picked. C reads a pick with `hammer_input_entity`, and Rust
-into `hammer::action::EntityRef`.
+makes the same field, starting with `here` picked. C reads a pick with `hammer_input_entity`, and each
+of a list's with `hammer_entity_read`; Rust reads one into `hammer::action::EntityRef`.
 
 ## Pages, buttons, and state
 
 A reply's `Page` is what the action's dialog shows next: a `title`, `markdown`, `fields` made with
-`Field.text`, `bool`, `int`, `choice`, `scenes`, and `entity` (the same as the manifest's), and `buttons`. Pressing
-a button calls the action again with its id in `request.button` and the page's values in
-`request.input`. A `primary` button is the one to press; an `inline` one sits under the markdown, for
-acting on something in it, and the rest sit in the dialog's footer.
+`Field.text`, `bool`, `int`, `choice`, `scenes`, and `entity` (the same as the manifest's), and
+`buttons`. Pressing a button calls the action again with its id in `request.button` and the page's
+values in `request.input`. A `primary` button is the one to press; an `inline` one sits under the
+markdown, for acting on something in it, and the rest sit in the dialog's footer.
 
 A module keeps nothing between calls, so a page carries what the next call needs in its `state`:
 `stateOf(value)` writes any `@Serializable` value, and `request.state<T>()` reads it back from the next
