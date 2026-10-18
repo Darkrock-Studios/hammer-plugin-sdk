@@ -8,6 +8,7 @@ import hammer.ActionRequest
 import hammer.CommandRequest
 import hammer.DiagnoseRequest
 import hammer.Diagnostic
+import hammer.EntityRef
 import hammer.ExportRequest
 import hammer.Fix
 import hammer.call
@@ -85,6 +86,29 @@ fun countWords(request: ActionRequest): ActionReply {
 		}
 	}
 	return ActionReply.document(counts)
+}
+
+@Serializable
+class AboutInput(val who: EntityRef)
+
+@Serializable
+private class Entry(val name: String, val aliases: List<String> = emptyList(), val referencedBy: List<Int> = emptyList())
+
+// An action with an entity field: a character the user picks by name, read with entry.read.
+fun about(request: ActionRequest): ActionReply {
+	val who = request.input<AboutInput>().who
+	val entry = call<Entry>("entry.read", buildJsonObject {
+		put("project", request.project)
+		put("id", who.id)
+	})
+	val scenes = entry.referencedBy.size
+	return ActionReply.document(
+		buildString {
+			appendLine("# ${entry.name}")
+			if (entry.aliases.isNotEmpty()) appendLine("Also known as ${entry.aliases.joinToString()}.")
+			appendLine("In ${if (scenes == 1) "1 scene" else "$scenes scenes"}.")
+		},
+	)
 }
 
 // Reads a file the package ships in resources/: one tip a line, picked at random.

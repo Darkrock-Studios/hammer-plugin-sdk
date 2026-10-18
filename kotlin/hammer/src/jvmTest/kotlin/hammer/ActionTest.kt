@@ -2,14 +2,19 @@ package hammer
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 
 class ActionTest {
 	@Serializable
 	class Step(val step: Int, val name: String = "")
+
+	@Serializable
+	class Picks(val who: EntityRef? = null, val cast: List<EntityRef> = emptyList())
 
 	@Test
 	fun `a reply leaves out what is unset`() {
@@ -76,5 +81,61 @@ class ActionTest {
 		assertNull(first.state)
 		assertNull(first.state<Step>())
 		assertFalse(first.resumed)
+	}
+
+	@Test
+	fun `an entity field is one item unless multiple, leaving out what is unset`() {
+		val mara = EntityRef("entry", 12)
+		val fields = listOf(
+			ActionReply.Field.entity("who", "Who"),
+			ActionReply.Field.entity(
+				"a", "First", required = true, kinds = listOf("entry"), entryTypes = listOf("person"), tags = listOf("pov"), default = mara,
+			),
+			ActionReply.Field.entity("cast", "Cast", multiple = true, default = mara),
+			ActionReply.Field.entity("pair", "Pair", kinds = listOf("entry", "scene"), default = listOf(mara, EntityRef("scene", 3))),
+			ActionReply.Field.entity("one", "One", multiple = false, default = listOf(EntityRef("note", 4))),
+			ActionReply.Field.entity("none", "None", multiple = false, default = emptyList()),
+		)
+		assertEquals(
+			"""[{"key":"who","type":"entity","label":"Who"},""" +
+				"""{"key":"a","type":"entity","label":"First","required":true,"default":{"kind":"entry","id":12},""" +
+				""""kinds":["entry"],"entry_types":["person"],"tags":["pov"]},""" +
+				"""{"key":"cast","type":"entity","label":"Cast","default":[{"kind":"entry","id":12}],"multiple":true},""" +
+				"""{"key":"pair","type":"entity","label":"Pair","default":[{"kind":"entry","id":12},{"kind":"scene","id":3}],""" +
+				""""kinds":["entry","scene"],"multiple":true},""" +
+				"""{"key":"one","type":"entity","label":"One","default":{"kind":"note","id":4}},""" +
+				"""{"key":"none","type":"entity","label":"None"}]""",
+			json.encodeToString(ListSerializer(ActionReply.Field.serializer()), fields),
+		)
+		assertEquals(listOf(false, false, true, true, false, false), fields.map { it.multiple })
+		assertFailsWith<IllegalArgumentException> {
+			ActionReply.Field.entity("two", "Two", multiple = false, default = listOf(mara, EntityRef("entry", 13)))
+		}
+	}
+
+	@Test
+	fun `a field read without multiple is a list for scenes and one item for an entity`() {
+		fun field(text: String) = json.decodeFromString(ActionReply.Field.serializer(), text)
+		assertTrue(field("""{"key":"s","type":"scenes","label":"S"}""").multiple)
+		assertFalse(field("""{"key":"s","type":"scenes","label":"S","multiple":false}""").multiple)
+		assertFalse(field("""{"key":"e","type":"entity","label":"E"}""").multiple)
+		val many = field("""{"key":"e","type":"entity","label":"E","entry_types":["place"],"multiple":true}""")
+		assertTrue(many.multiple)
+		assertEquals(listOf("place"), many.entryTypes)
+		assertEquals("""{"key":"e","type":"entity","label":"E","entry_types":["place"],"multiple":true}""", json.encodeToString(ActionReply.Field.serializer(), many))
+	}
+
+	@Test
+	fun `entity input reads as EntityRef`() {
+		fun picks(input: String) = json.decodeFromString(
+			ActionRequest.serializer(),
+			"""{"action":"meet","project":"Storm","input":$input}""",
+		).input<Picks>()
+		val picked = picks("""{"who":{"kind":"entry","id":12},"cast":[{"kind":"scene","id":3},{"kind":"event","id":4}]}""")
+		assertEquals(EntityRef("entry", 12), picked.who)
+		assertEquals(listOf(EntityRef("scene", 3), EntityRef("event", 4)), picked.cast)
+		val none = picks("""{"who":null,"cast":[]}""")
+		assertNull(none.who)
+		assertEquals(emptyList(), none.cast)
 	}
 }

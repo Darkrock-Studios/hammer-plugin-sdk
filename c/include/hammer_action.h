@@ -134,7 +134,51 @@ static inline HammerText hammer_input_string(const HammerActionRequest *request,
   return value;
 }
 
-typedef enum { HAMMER_FIELD_TEXT, HAMMER_FIELD_BOOL, HAMMER_FIELD_INT, HAMMER_FIELD_CHOICE, HAMMER_FIELD_SCENES } HammerFieldType;
+// Reads the value at json, moving past it, as an entity field's pick, {"kind":"entry","id":12}: its kind
+// (scene, note, entry, or event) and id. 0 for null, or anything else that is not a pick. For a field
+// with multiple, step through its list with hammer_json_enter_array and hammer_json_next_item.
+static inline int hammer_entity_read(HammerJson *json, HammerText *kind, int64_t *id) {
+  *kind = (HammerText){0, 0};
+  *id = 0;
+  if (hammer_json_peek(json) != '{') {
+    hammer_json_skip(json);
+    return 0;
+  }
+  int has_id = 0;
+  const char *key;
+  uint64_t key_length;
+  hammer_json_enter_object(json);
+  while (hammer_json_next_key(json, &key, &key_length)) {
+    char c = hammer_json_peek(json);
+    if (c == '"' && hammer_json_key_is(key, key_length, "kind")) {
+      hammer_json_string(json, &kind->data, &kind->length);
+    } else if ((c == '-' || hammer_is_digit(c)) && hammer_json_key_is(key, key_length, "id")) {
+      *id = hammer_json_int(json);
+      has_id = 1;
+    } else {
+      hammer_json_skip(json);
+    }
+  }
+  return !json->error && kind->data && has_id;
+}
+
+// A single entity field's pick: its kind and id, and 1; 0 when the field is null or not there.
+static inline int hammer_input_entity(const HammerActionRequest *request, const char *key, HammerText *kind, int64_t *id) {
+  HammerJson json;
+  if (hammer_input(request, key, &json)) return hammer_entity_read(&json, kind, id);
+  *kind = (HammerText){0, 0};
+  *id = 0;
+  return 0;
+}
+
+typedef enum {
+  HAMMER_FIELD_TEXT,
+  HAMMER_FIELD_BOOL,
+  HAMMER_FIELD_INT,
+  HAMMER_FIELD_CHOICE,
+  HAMMER_FIELD_SCENES,
+  HAMMER_FIELD_ENTITY
+} HammerFieldType;
 
 // What edits a text field: an ordinary text field, or the scene editor's, whose value is markdown,
 // with its format bar or the extended one (highlight, task lists, tables).
@@ -146,17 +190,24 @@ typedef struct {
 } HammerOption;
 
 // A field of a page. Its value comes back in the next request's input under key: a string for text and
-// choice, a bool, an integer, or for scenes a list of scene ids (one id or null when single). Members
-// left 0 are left out, so a designated initializer names only what it needs.
+// choice, a bool, an integer, for scenes a list of scene ids (one id or null when single), and for entity
+// one pick, {"kind":"entry","id":12}, or null (a list of picks when multiple). Members left 0 are left
+// out, so a designated initializer names only what it needs.
+//
+//   static const char *const entries[] = {"entry"};
+//   static const char *const people[] = {"person"};
+//   HammerField who = {.type = HAMMER_FIELD_ENTITY, .key = "who", .label = "Who", .required = 1,
+//                      .kinds = entries, .kind_count = 1, .entry_types = people, .entry_type_count = 1};
 typedef struct {
   HammerFieldType type;
   const char *key;
   const char *label;
   const char *hint;
-  // Text must not be blank, or scenes empty; Hammer checks before calling.
+  // Text must not be blank, scenes empty, or an entity unpicked; Hammer checks before calling.
   int required;
-  // The initial value as JSON, such as "true", "8", "\"elvish\"", or "[3,4]"; 0 for the type's own:
-  // false, min or 0, the first option, "", or none.
+  // The initial value as JSON, such as "true", "8", "\"elvish\"", "[3,4]", or
+  // "{\"kind\":\"entry\",\"id\":12}"; 0 for the type's own: false, min or 0, the first option, "", or
+  // none.
   const char *default_json;
   // An int's bounds, each used when has_min or has_max is set.
   int64_t min;
@@ -171,6 +222,18 @@ typedef struct {
   int multiline;
   // Scenes as one scene instead of a list.
   int single;
+  // An entity's kinds of item: scene, note, entry, or event; all four when kind_count is 0.
+  const char *const *kinds;
+  uint32_t kind_count;
+  // An entity's types of entry, with entry among its kinds: person, place, thing, event, or idea; any
+  // when entry_type_count is 0.
+  const char *const *entry_types;
+  uint32_t entry_type_count;
+  // Tags an entity's item needs one of; any item when tag_count is 0.
+  const char *const *tags;
+  uint32_t tag_count;
+  // An entity as a list of picks instead of one.
+  int multiple;
 } HammerField;
 
 // A button of a page: pressing it calls the action again with id as "button", the page's values as
@@ -210,8 +273,18 @@ static inline void hammer_put_json_text(HammerBuffer *out, const char *text) {
   hammer_put_json_string(out, text, strlen(text));
 }
 
+static inline void hammer_put_json_texts(HammerBuffer *out, const char *key, const char *const *texts, uint32_t count) {
+  if (!count) return;
+  hammer_put_text(out, key);
+  for (uint32_t i = 0; i < count; i++) {
+    hammer_put_char(out, i ? ',' : '[');
+    hammer_put_json_text(out, texts[i]);
+  }
+  hammer_put_char(out, ']');
+}
+
 static inline void hammer_put_field(HammerBuffer *out, const HammerField *field) {
-  static const char *const types[] = {"text", "bool", "int", "choice", "scenes"};
+  static const char *const types[] = {"text", "bool", "int", "choice", "scenes", "entity"};
   static const char *const formats[] = {"plain", "rich", "rich-extended"};
   hammer_put_text(out, "{\"key\":");
   hammer_put_json_text(out, field->key);
@@ -253,7 +326,11 @@ static inline void hammer_put_field(HammerBuffer *out, const HammerField *field)
     hammer_put_char(out, '"');
   }
   if (field->multiline) hammer_put_text(out, ",\"multiline\":true");
+  hammer_put_json_texts(out, ",\"kinds\":", field->kinds, field->kind_count);
+  hammer_put_json_texts(out, ",\"entry_types\":", field->entry_types, field->entry_type_count);
+  hammer_put_json_texts(out, ",\"tags\":", field->tags, field->tag_count);
   if (field->single) hammer_put_text(out, ",\"multiple\":false");
+  if (field->multiple) hammer_put_text(out, ",\"multiple\":true");
   hammer_put_char(out, '}');
 }
 

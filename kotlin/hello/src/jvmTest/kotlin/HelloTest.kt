@@ -3,6 +3,7 @@ import hammer.ActionReply
 import hammer.ActionRequest
 import hammer.CommandRequest
 import hammer.DiagnoseRequest
+import hammer.EntityRef
 import hammer.ExportRequest
 import hammer.FakeHammerHost
 import hammer.diagnoseReply
@@ -39,6 +40,13 @@ class HelloTest {
 			"scene.read" to { input ->
 				buildJsonObject { put("markdown", if (input["id"]!!.jsonPrimitive.int == 2) "Rain fell hard." else "Quiet.") }
 			},
+			"entry.read" to { input ->
+				buildJsonObject {
+					put("name", if (input["id"]!!.jsonPrimitive.int == 12) "Mara" else "Someone")
+					putJsonArray("aliases") { add(JsonPrimitive("The Captain")) }
+					putJsonArray("referencedBy") { add(JsonPrimitive(2)); add(JsonPrimitive(3)) }
+				}
+			},
 		),
 	).also { host = it }
 
@@ -66,6 +74,15 @@ class HelloTest {
 		assertEquals("# Word counts\n- Calm: 1\n", driver("count", ::countWords, place = "scene", id = 3).open().run().page?.markdown)
 		assertEquals("# Word counts\n- Storm: 3\n- Calm: 1\n", driver("count", ::countWords).open().run().page?.markdown)
 		assertEquals(listOf("Counting Storm", "Counting Calm"), fake.progress.takeLast(2).map { it["message"]!!.jsonPrimitive.content })
+	}
+
+	@Test
+	fun `about asks for a character and reads its entry`() {
+		val about = driver("about", ::about).open()
+		about.run()
+		assertEquals(setOf("who"), about.errors.keys)
+		about.fill("who", EntityRef("entry", 12)).run()
+		assertEquals("# Mara\nAlso known as The Captain.\nIn 2 scenes.\n", about.page?.markdown)
 	}
 
 	@Test

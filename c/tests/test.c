@@ -112,8 +112,56 @@ static void writes_replies(void) {
   HAMMER_CHECK(wrote(&out, "{\"open\":{\"place\":\"project\"}}"));
 }
 
+static void reads_and_writes_entities(void) {
+  static const char text[] =
+      "{\"action\":\"meet\",\"project\":\"Storm\",\"input\":{\"a\":{\"id\":12,\"kind\":\"entry\"},"
+      "\"b\":null,\"c\":{\"kind\":\"scene\"},\"d\":7,\"cast\":[{\"kind\":\"scene\",\"id\":3},null,"
+      "{\"kind\":\"event\",\"id\":4,\"extra\":[1]}],\"after\":\"x\"}}";
+  HammerActionRequest request;
+  HAMMER_CHECK(hammer_action_read(text, strlen(text), &request));
+  HammerText kind;
+  int64_t id;
+  HAMMER_CHECK(hammer_input_entity(&request, "a", &kind, &id));
+  HAMMER_CHECK(hammer_text_is(kind, "entry") && id == 12);
+  HAMMER_CHECK(!hammer_input_entity(&request, "b", &kind, &id) && !kind.data);
+  HAMMER_CHECK(!hammer_input_entity(&request, "c", &kind, &id));
+  HAMMER_CHECK(!hammer_input_entity(&request, "d", &kind, &id));
+  HAMMER_CHECK(!hammer_input_entity(&request, "missing", &kind, &id) && !kind.data && id == 0);
+
+  HammerJson json;
+  int64_t ids[3] = {0};
+  int picks = 0, items = 0;
+  HAMMER_CHECK(hammer_input(&request, "cast", &json) && hammer_json_enter_array(&json));
+  while (hammer_json_next_item(&json)) {
+    if (hammer_entity_read(&json, &kind, &id)) ids[picks++] = id;
+    items++;
+  }
+  HAMMER_CHECK(!json.error && items == 3 && picks == 2 && ids[0] == 3 && ids[1] == 4);
+
+  static const char *const entries[] = {"entry"};
+  static const char *const types[] = {"person", "place"};
+  static const char *const tags[] = {"pov"};
+  HammerField fields[] = {
+      {.type = HAMMER_FIELD_ENTITY, .key = "who", .label = "Who"},
+      {.type = HAMMER_FIELD_ENTITY, .key = "a", .label = "First", .required = 1,
+       .default_json = "{\"kind\":\"entry\",\"id\":12}", .kinds = entries, .kind_count = 1, .entry_types = types,
+       .entry_type_count = 2, .tags = tags, .tag_count = 1},
+      {.type = HAMMER_FIELD_ENTITY, .key = "cast", .label = "Cast", .default_json = "[]", .multiple = 1},
+  };
+  HammerBuffer out = {0};
+  hammer_put_page(&out, &(HammerPage){.fields = fields, .field_count = 3}, 0);
+  HAMMER_CHECK(wrote(&out,
+                     "{\"page\":{\"fields\":["
+                     "{\"key\":\"who\",\"type\":\"entity\",\"label\":\"Who\"},"
+                     "{\"key\":\"a\",\"type\":\"entity\",\"label\":\"First\",\"required\":true,"
+                     "\"default\":{\"kind\":\"entry\",\"id\":12},\"kinds\":[\"entry\"],"
+                     "\"entry_types\":[\"person\",\"place\"],\"tags\":[\"pov\"]},"
+                     "{\"key\":\"cast\",\"type\":\"entity\",\"label\":\"Cast\",\"default\":[],\"multiple\":true}]}}"));
+}
+
 int main(void) {
   reads_requests();
   writes_replies();
+  reads_and_writes_entities();
   return hammer_test_summary();
 }

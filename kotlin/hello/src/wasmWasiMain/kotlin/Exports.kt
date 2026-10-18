@@ -13,6 +13,7 @@ fun action(): Int = action { request ->
 		"greet" -> greet(request)
 		"outline" -> outline(request)
 		"count" -> countWords(request)
+		"about" -> about(request)
 		"tip" -> tip()
 		"wave" -> wave(request)
 		else -> null

@@ -117,19 +117,21 @@ class ActionReply(
 	)
 
 	/**
-	 * A field of a page, made by [text], [bool], [int], [choice], or [scenes]. Its value comes back in the
-	 * next call's input under [key]: a string for text and choice, a bool, an integer, or for scenes a list
-	 * of scene ids (one id or null when not [multiple]). Hammer checks [required], an int's bounds, and a
-	 * choice's options before calling, unless the button pressed skips them.
+	 * A field of a page, made by [text], [bool], [int], [choice], [scenes], or [entity]. Its value comes
+	 * back in the next call's input under [key]: a string for text and choice, a bool, an integer, for
+	 * scenes a list of scene ids (one id or null when not [multiple]), and for entity an [EntityRef] or
+	 * null (a list of them when [multiple]). Hammer checks [required], an int's bounds, a choice's options,
+	 * and that an entity's picks exist and match its filters before calling, unless the button pressed
+	 * skips them.
 	 */
 	@Serializable
 	class Field private constructor(
 		val key: String,
-		/** `text`, `bool`, `int`, `choice`, or `scenes`. */
+		/** `text`, `bool`, `int`, `choice`, `scenes`, or `entity`. */
 		val type: String,
 		val label: String,
 		val hint: String? = null,
-		/** For text, not blank; for scenes, not empty. */
+		/** For text, not blank; for scenes, not empty; for entity, a pick. */
 		val required: Boolean = false,
 		/** The initial value; null for the type's own: false, [min] or 0, the first option, "", or none. */
 		val default: JsonElement? = null,
@@ -138,8 +140,20 @@ class ActionReply(
 		val options: List<Option> = emptyList(),
 		val format: TextFormat = TextFormat.Plain,
 		val multiline: Boolean = false,
-		val multiple: Boolean = true,
+		/** An entity's kinds of item: `scene`, `note`, `entry`, or `event`; all four when empty. */
+		val kinds: List<String> = emptyList(),
+		/** An entity's types of entry: `person`, `place`, `thing`, `event`, or `idea`; any when empty. */
+		@SerialName("entry_types")
+		val entryTypes: List<String> = emptyList(),
+		/** An entity's tags: an item needs one of them; any item when empty. */
+		val tags: List<String> = emptyList(),
+		// Null for the type's own, which differ: scenes pick a list, an entity one item.
+		@SerialName("multiple")
+		private val multipleKey: Boolean? = null,
 	) {
+		/** Whether the value is a list: by default for scenes, not for an entity. */
+		val multiple: Boolean get() = multipleKey ?: (type == "scenes")
+
 		/** One of a choice's options: [value] is what comes back in the input, [label] what is shown. */
 		@Serializable
 		class Option(val value: String, val label: String)
@@ -181,8 +195,60 @@ class ActionReply(
 				val initial = default?.let { ids ->
 					if (multiple) JsonArray(ids.map(::JsonPrimitive)) else ids.singleOrNull()?.let(::JsonPrimitive) ?: JsonNull
 				}
-				return Field(key, "scenes", label, hint, required, initial, multiple = multiple)
+				return Field(key, "scenes", label, hint, required, initial, multipleKey = false.takeUnless { multiple })
 			}
+
+			/**
+			 * An item of the project picked by name: one [EntityRef] or null, or with [multiple] a list. The
+			 * picker offers [kinds] of item (`scene`, `note`, `entry`, `event`; all four when empty); of
+			 * entries, those of [entryTypes] (`person`, `place`, `thing`, `event`, `idea`; any when empty),
+			 * which needs `entry` among the kinds; and with [tags], only items tagged with one of them.
+			 * [default] is picked at first; Hammer shows a default that is gone or does not match as empty.
+			 */
+			fun entity(
+				key: String,
+				label: String,
+				hint: String? = null,
+				required: Boolean = false,
+				kinds: List<String> = emptyList(),
+				entryTypes: List<String> = emptyList(),
+				tags: List<String> = emptyList(),
+				multiple: Boolean = false,
+				default: EntityRef? = null,
+			): Field {
+				val initial = default?.let { if (multiple) entityJson(listOf(it)) else entityJson(it) }
+				return Field(
+					key, "entity", label, hint, required, initial,
+					kinds = kinds, entryTypes = entryTypes, tags = tags, multipleKey = true.takeIf { multiple },
+				)
+			}
+
+			/**
+			 * An [entity] field starting with the items in [default]: a list, or with [multiple] false, one
+			 * item from a [default] of at most one.
+			 */
+			fun entity(
+				key: String,
+				label: String,
+				hint: String? = null,
+				required: Boolean = false,
+				kinds: List<String> = emptyList(),
+				entryTypes: List<String> = emptyList(),
+				tags: List<String> = emptyList(),
+				multiple: Boolean = true,
+				default: List<EntityRef>,
+			): Field {
+				require(multiple || default.size <= 1) { "A field of one item starts with one at most, not ${default.size}" }
+				if (!multiple) return entity(key, label, hint, required, kinds, entryTypes, tags, default = default.singleOrNull())
+				return Field(
+					key, "entity", label, hint, required, entityJson(default),
+					kinds = kinds, entryTypes = entryTypes, tags = tags, multipleKey = true,
+				)
+			}
+
+			private fun entityJson(ref: EntityRef): JsonElement = json.encodeToJsonElement(EntityRef.serializer(), ref)
+
+			private fun entityJson(refs: List<EntityRef>): JsonElement = JsonArray(refs.map(::entityJson))
 		}
 	}
 
@@ -218,6 +284,14 @@ class ActionReply(
 		fun document(markdown: String, title: String? = null) = ActionReply(Page(title = title, markdown = markdown))
 	}
 }
+
+/**
+ * An item of the project, as an entity field's value: [kind] is `scene`, `note`, `entry`, or `event`, and
+ * [id] the item's. A plugin's input class reads one field as `EntityRef?` and one with `multiple` as
+ * `List<EntityRef>`; `ActionReply.Open(ref.kind, ref.id)` goes to it.
+ */
+@Serializable
+data class EntityRef(val kind: String, val id: Int)
 
 /** What edits a text field: an ordinary text field, or the scene editor's, whose value is markdown. */
 @Serializable

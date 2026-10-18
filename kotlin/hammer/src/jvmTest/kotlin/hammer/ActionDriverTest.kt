@@ -26,6 +26,9 @@ class ActionDriverTest {
 	@Serializable
 	class Wants(val want: String)
 
+	@Serializable
+	class Meeting(val a: EntityRef? = null, val b: EntityRef? = null, val cast: List<EntityRef> = emptyList())
+
 	private val nameField = ActionReply.Field.text("name", "Name", required = true)
 
 	// Asks for a name on the manifest's page, then what they want, with Back; Next adds them and opens the entry.
@@ -203,6 +206,52 @@ class ActionDriverTest {
 	}
 
 	@Test
+	fun `entity fields start from their defaults, and Hammer checks what it can`() {
+		val mara = EntityRef("entry", 12)
+		val fields = listOf(
+			ActionReply.Field.entity("a", "First", required = true, kinds = listOf("entry"), entryTypes = listOf("person"), default = mara),
+			ActionReply.Field.entity("b", "Second", required = true, kinds = listOf("entry")),
+			ActionReply.Field.entity("cast", "Cast", required = true, multiple = true),
+			ActionReply.Field.entity("where", "Where", kinds = listOf("scene"), default = EntityRef("entry", 4)),
+			ActionReply.Field.entity("seen", "Seen", kinds = listOf("scene"), default = listOf(EntityRef("scene", 3), mara)),
+		)
+		var met: Meeting? = null
+		val driver = ActionDriver("meet", { met = it.input<Meeting>(); null }, fields = fields).open()
+		val maraJson = buildJsonObject { put("kind", "entry"); put("id", 12) }
+		val sceneJson = buildJsonObject { put("kind", "scene"); put("id", 3) }
+		assertEquals(
+			mapOf("a" to maraJson, "b" to JsonNull, "cast" to JsonArray(emptyList()), "where" to JsonNull, "seen" to JsonArray(listOf(sceneJson))),
+			driver.values,
+		)
+
+		driver.run()
+		assertEquals(mapOf("b" to "Required", "cast" to "Required"), driver.errors)
+		driver.fill("b", EntityRef("scene", 3)).fill("cast", listOf(mara)).fill("where", JsonPrimitive(3)).fill("seen", null).run()
+		assertEquals(mapOf("b" to "Not one of its kinds", "where" to "Not an item", "seen" to "Not an item"), driver.errors)
+		driver.fill("a", buildJsonObject { put("kind", "entry"); put("id", "12") }).fill("b", EntityRef("chapter", 1)).run()
+		assertEquals(setOf("a", "b", "where", "seen"), driver.errors.keys)
+
+		// Entry types are the project's to check, so a place passes here.
+		driver.fill("a", EntityRef("entry", 99)).fill("b", EntityRef("entry", 13)).fill("where", null).fill("seen", emptyList<EntityRef>()).run()
+		assertTrue(driver.ended)
+		assertEquals(listOf(EntityRef("entry", 99), EntityRef("entry", 13)), listOf(met?.a, met?.b))
+		assertEquals(listOf(mara), met?.cast)
+	}
+
+	@Test
+	fun `Hammer refuses an entity field it cannot show`() {
+		fun refused(field: ActionReply.Field) = assertFailsWith<IllegalStateException> { ActionDriver("meet", { null }, fields = listOf(field)).open() }
+		fun parsed(text: String) = json.decodeFromString(ActionReply.Field.serializer(), text)
+		refused(ActionReply.Field.entity("a", "A", kinds = listOf("chapter")))
+		refused(ActionReply.Field.entity("a", "A", entryTypes = listOf("villain")))
+		refused(ActionReply.Field.entity("a", "A", kinds = listOf("scene"), entryTypes = listOf("person")))
+		refused(parsed("""{"key":"a","type":"entity","label":"A","default":[{"kind":"entry","id":1}]}"""))
+		refused(parsed("""{"key":"a","type":"entity","label":"A","multiple":true,"default":{"kind":"entry","id":1}}"""))
+		refused(parsed("""{"key":"a","type":"entity","label":"A","default":{"kind":"entry"}}"""))
+		ActionDriver("meet", { null }, fields = listOf(ActionReply.Field.entity("a", "A", entryTypes = listOf("person")))).open()
+	}
+
+	@Test
 	fun `a reply Hammer would refuse fails the test`() {
 		val big = ActionDriver("big", { ActionReply(ActionReply.Page(state = JsonPrimitive("x".repeat(1024 * 1024)))) })
 		assertFailsWith<IllegalStateException> { big.open() }
@@ -248,16 +297,27 @@ class ActionDriverTest {
 				type = "int"
 				label = "Count"
 				default = 8
+
+				[[actions.field]]
+				key = "who"
+				type = "entity"
+				label = "Who"
+				kinds = ["entry"]
+				entry_types = ["person"]
+				default = { kind = "entry", id = 12 }
 				""".trimIndent(),
 			)
 		}
 		val fields = ActionDriver.manifestFields("visit", manifest)
-		assertEquals(listOf("name", "set", "count"), fields.map { it.key })
+		assertEquals(listOf("name", "set", "count", "who"), fields.map { it.key })
+		assertEquals(listOf("person"), fields[3].entryTypes)
+		assertFalse(fields[3].multiple)
 		assertTrue(fields[0].required)
 		assertEquals(listOf("quick", "full"), fields[1].options.map { it.value })
 		val driver = ActionDriver("visit", ::visit, fields = fields).open()
 		assertEquals(JsonPrimitive("full"), driver.values["set"])
 		assertEquals(JsonPrimitive(8), driver.values["count"])
+		assertEquals(buildJsonObject { put("kind", "entry"); put("id", 12) }, driver.values["who"])
 		assertEquals(emptyList(), ActionDriver.manifestFields("other", manifest))
 		assertFailsWith<IllegalStateException> { ActionDriver.manifestFields("missing", manifest) }
 	}

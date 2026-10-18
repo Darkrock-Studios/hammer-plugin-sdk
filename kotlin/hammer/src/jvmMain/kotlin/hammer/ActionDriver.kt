@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.longOrNull
 import net.peanuuutz.tomlkt.Toml
 import net.peanuuutz.tomlkt.TomlArray
@@ -20,10 +21,12 @@ import net.peanuuutz.tomlkt.TomlTable
  * `[[actions.field]]`s, read from the plugin's `manifest.toml` unless [fields] are given, or calls at once
  * when there are none. [fill] sets a field, [run] presses Run on the manifest's page, and [press] presses
  * a page's button. Before calling, Hammer's own checks run (required, an int's bounds, a choice's
- * options) unless the button has `validate = false`; what they find is in [errors], and the handler is not
- * called. Each call carries the page's values and its state, and its reply is applied as Hammer would:
- * errors keep the page, its values, and its state; a page replaces the one showing; and `open`, or a
- * reply with none of these, ends the action. Errors from a call made with no page showing end it too,
+ * options, an entity's kinds) unless the button has `validate = false`; what they find is in [errors],
+ * and the handler is not called. With no project to look in, it cannot check that an entity's picks
+ * exist, or their entry types and tags, so a test fills in what the user could pick. Each call carries
+ * the page's values and its state, and its reply is applied as Hammer would: errors keep the page, its
+ * values, and its state; a page replaces the one showing; and `open`, or a reply with none of these,
+ * ends the action. Errors from a call made with no page showing end it too,
  * their messages joining [messages]. A reply Hammer would refuse, such as one with state over 1 MiB,
  * throws.
  *
@@ -98,6 +101,13 @@ class ActionDriver(
 
 	/** Sets a scenes field to these scene ids. */
 	fun fill(key: String, value: List<Int>) = fill(key, JsonArray(value.map(::JsonPrimitive)))
+
+	/** Sets an entity field to this pick, or none. */
+	fun fill(key: String, value: EntityRef?) = fill(key, json.encodeToJsonElement(value))
+
+	/** Sets an entity field of several items to these picks. */
+	@JvmName("fillEntities")
+	fun fill(key: String, value: List<EntityRef>) = fill(key, json.encodeToJsonElement(value))
 
 	fun fill(key: String, value: JsonElement): ActionDriver {
 		val page = showing()
@@ -180,7 +190,7 @@ class ActionDriver(
 	private fun show(page: ActionReply.Page) {
 		this.page = page
 		_values.clear()
-		page.fields.forEach { _values[it.key] = it.default ?: emptyValue(it) }
+		page.fields.forEach { _values[it.key] = it.default?.let { default -> initialValue(it, default) } ?: emptyValue(it) }
 	}
 
 	private fun end(open: ActionReply.Open?) {
@@ -207,6 +217,15 @@ class ActionDriver(
 				}
 			}
 			"choice" -> "Not one of the options".takeIf { field.options.none { it.value == text } }
+			"entity" -> {
+				val picks = entityPicks(field, value)
+				when {
+					picks == null -> "Not an item"
+					field.required && picks.isEmpty() -> "Required"
+					picks.any { !allows(field, it) } -> "Not one of its kinds"
+					else -> null
+				}
+			}
 			else -> null
 		}
 	}
@@ -214,6 +233,9 @@ class ActionDriver(
 	companion object {
 		private const val STATE_MAX = 1024 * 1024
 		private val PLACES = setOf("project", "scene", "note", "entry", "event")
+		private val TYPES = setOf("text", "bool", "int", "choice", "scenes", "entity")
+		private val KINDS = setOf("scene", "note", "entry", "event")
+		private val ENTRY_TYPES = setOf("person", "place", "thing", "event", "idea")
 
 		/**
 		 * The `[[actions.field]]`s of [action] in [manifest], by default the plugin's own, since Gradle runs
@@ -250,14 +272,52 @@ class ActionDriver(
 			"bool" -> JsonPrimitive(false)
 			"int" -> JsonPrimitive(field.min ?: 0)
 			"choice" -> JsonPrimitive(field.options.first().value)
-			"scenes" -> if (field.multiple) JsonArray(emptyList()) else JsonNull
+			"scenes", "entity" -> if (field.multiple) JsonArray(emptyList()) else JsonNull
 			else -> JsonPrimitive("")
 		}
 
+		// Hammer shows an entity's default without the picks it does not allow.
+		private fun initialValue(field: ActionReply.Field, default: JsonElement): JsonElement {
+			if (field.type != "entity") return default
+			val allowed = entityPicks(field, default).orEmpty().filter { allows(field, it) }
+			return if (field.multiple) json.encodeToJsonElement(allowed) else json.encodeToJsonElement(allowed.singleOrNull())
+		}
+
+		/** An entity field's picks in [value], none for an empty pick; null when it is not the field's shape. */
+		private fun entityPicks(field: ActionReply.Field, value: JsonElement?): List<EntityRef>? {
+			fun ref(element: JsonElement): EntityRef? {
+				val ref = (element as? JsonObject)?.let { decodeState<EntityRef>(it) } ?: return null
+				val id = (element["id"] as? JsonPrimitive)?.takeUnless { it.isString }?.content
+				return ref.takeIf { it.kind in KINDS && id == it.id.toString() }
+			}
+			return when {
+				value == null || value == JsonNull -> if (field.multiple) null else emptyList()
+				field.multiple -> (value as? JsonArray)?.map { ref(it) ?: return null }
+				else -> ref(value)?.let(::listOf)
+			}
+		}
+
+		private fun allows(field: ActionReply.Field, ref: EntityRef) = field.kinds.isEmpty() || ref.kind in field.kinds
+
 		private fun refuse(fields: List<ActionReply.Field>): String? = fields.firstNotNullOfOrNull { field ->
 			when {
-				field.type !in setOf("text", "bool", "int", "choice", "scenes") -> "field ${field.key} has the unknown type ${field.type}"
+				field.type !in TYPES -> "field ${field.key} has the unknown type ${field.type}"
 				field.type == "choice" && field.options.isEmpty() -> "choice ${field.key} has no options"
+				field.type == "entity" -> refuseEntity(field)
+				else -> null
+			}
+		}
+
+		private fun refuseEntity(field: ActionReply.Field): String? {
+			val kind = field.kinds.find { it !in KINDS }
+			val entryType = field.entryTypes.find { it !in ENTRY_TYPES }
+			return when {
+				kind != null -> "entity ${field.key} has the unknown kind $kind"
+				entryType != null -> "entity ${field.key} has the unknown entry type $entryType"
+				field.entryTypes.isNotEmpty() && field.kinds.isNotEmpty() && "entry" !in field.kinds ->
+					"entity ${field.key} has entry types but does not pick entries"
+				field.default != null && entityPicks(field, field.default) == null ->
+					"entity ${field.key} has a default that is not ${if (field.multiple) "a list of items" else "an item or null"}"
 				else -> null
 			}
 		}

@@ -12,7 +12,7 @@ Hammer-specific import and exports described in hammer-editor's `docs/CLIENT-PLU
 | `rust/tools/finish.py` | Makes a module built from crates written for the browser loadable by Hammer: drops wasm-bindgen's leftovers and checks the imports |
 | `kotlin/hammer` | The Kotlin kit: typed requests and replies, an action's pages among them, operations, the cache, and for JVM tests a fake Hammer and `ActionDriver`, which runs an action through its pages as Hammer does |
 | `kotlin/gradle-plugin` | The `hammer.plugin` Gradle plugin: sets up a plugin project and builds its `.hammerplugin` |
-| `kotlin/hello` | One small example of each kind of plugin, which [RECIPES.md](RECIPES.md) walks through: an export, actions replying with a message, with a document (one with fields and progress), and with two pages carrying state, a text check, and a command |
+| `kotlin/hello` | One small example of each kind of plugin, which [RECIPES.md](RECIPES.md) walks through: an export, actions replying with a message, with a document (one with fields and progress, one picking a character), and with two pages carrying state, a text check, and a command |
 | `tools/package.sh` | Packs a plugin directory and its built module into a `.hammerplugin` |
 
 New to writing plugins? [RECIPES.md](RECIPES.md) has a hello-world version of each kind, in Kotlin.

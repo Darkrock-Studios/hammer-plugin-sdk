@@ -164,10 +164,11 @@ picked. Field types are:
 | `int` | A number | `min`, `max` |
 | `choice` | The picked option's `value` | `options`, a list of `{ value, label }` |
 | `scenes` | A list of scene ids, picked from the project's tree | `multiple = false` for one id, or null |
+| `entity` | An item picked by name, `{ kind, id }`, or null | `kinds`, `entry_types`, `tags`; `multiple = true` for a list |
 
 Every field has a `key` and a `label`, and may have a `hint` and a `default`, its starting value;
-`required = true` insists on a text that is not blank, or at least one scene. Hammer checks these, an
-int's bounds, and a choice's options before calling. Action fields say `text` where settings say
+`required = true` insists on a text that is not blank, at least one scene, or an item picked. Hammer
+checks these, an int's bounds, a choice's options, and an entity's picks before calling. Action fields say `text` where settings say
 `string`.
 
 A long action calls `progress`, which Hammer shows with a Stop button; when the user stops it, the call
@@ -211,10 +212,68 @@ fun countWords(request: ActionRequest): ActionReply {
 }
 ```
 
+## Picking a character
+
+An `entity` field picks an item of the project by name: the user types to search scenes, notes,
+encyclopedia entries, and timeline events, by name and alias. `kinds` narrows it to some of `scene`,
+`note`, `entry`, and `event`; with `entry` among them, `entry_types` narrows entries to some of
+`person`, `place`, `thing`, `event`, and `idea`; and `tags` to items tagged with any of those given.
+Its value is `{ "kind": "entry", "id": 12 }`, or null when nothing is picked. With `multiple = true` it
+is a list of them, empty when nothing is picked; unlike `scenes`, an entity field picks one item unless
+it says otherwise. A `default` has the value's shape.
+
+Before calling, Hammer checks that each item picked still exists and matches the field's filters, and
+shows a default that is gone or does not match as empty. Read the value into an `EntityRef`, whose
+`kind` and `id` go to the operations for that kind, or to `ActionReply.Open`:
+
+```toml
+[[actions]]
+name = "about"
+label = "About a character"
+
+[[actions.field]]
+key = "who"
+type = "entity"
+label = "Character"
+kinds = ["entry"]
+entry_types = ["person"]
+required = true
+```
+
+```kotlin
+@Serializable
+class AboutInput(val who: EntityRef)
+
+@Serializable
+private class Entry(val name: String, val aliases: List<String> = emptyList(), val referencedBy: List<Int> = emptyList())
+
+fun about(request: ActionRequest): ActionReply {
+	val who = request.input<AboutInput>().who
+	val entry = call<Entry>("entry.read", buildJsonObject {
+		put("project", request.project)
+		put("id", who.id)
+	})
+	val scenes = entry.referencedBy.size
+	return ActionReply.document(
+		buildString {
+			appendLine("# ${entry.name}")
+			if (entry.aliases.isNotEmpty()) appendLine("Also known as ${entry.aliases.joinToString()}.")
+			appendLine("In ${if (scenes == 1) "1 scene" else "$scenes scenes"}.")
+		},
+	)
+}
+```
+
+`who` is never null here, since the field is required and Run checks it; a field that may be left
+empty reads as `EntityRef?`, and one with `multiple` as `List<EntityRef>`. On a page,
+`Field.entity("who", "Character", kinds = listOf("entry"), entryTypes = listOf("person"), default = here)`
+makes the same field, starting with `here` picked. C reads a pick with `hammer_input_entity`, and Rust
+into `hammer::action::EntityRef`.
+
 ## Pages, buttons, and state
 
 A reply's `Page` is what the action's dialog shows next: a `title`, `markdown`, `fields` made with
-`Field.text`, `bool`, `int`, `choice`, and `scenes` (the same as the manifest's), and `buttons`. Pressing
+`Field.text`, `bool`, `int`, `choice`, `scenes`, and `entity` (the same as the manifest's), and `buttons`. Pressing
 a button calls the action again with its id in `request.button` and the page's values in
 `request.input`. A `primary` button is the one to press; an `inline` one sits under the markdown, for
 acting on something in it, and the rest sit in the dialog's footer.
@@ -446,11 +505,13 @@ host = FakeHammerHost(mapOf("scene.read" to { _ -> buildJsonObject { put("markdo
 
 `ActionDriver` runs an action as Hammer does, over as many calls as a test needs. `open()` shows the
 manifest's fields for the action, read from the plugin's `manifest.toml`, or calls at once when it has
-none. `fill(key, value)` sets a field, `run()` presses Run on the manifest's page, and `press(id)` presses
-a page's button, after Hammer's checks unless the button skips them. Each call carries the page's state
-on, and the reply is applied as Hammer applies it, so a test reads what the user would see: `page`,
-`values`, `errors`, `messages`, `ended`, and `opened`, with `state<T>()` reading the page's state.
-`resume()` stands for closing the dialog and opening the action again, so the next call is `resumed`.
+none. `fill(key, value)` sets a field (an entity's with an `EntityRef`), `run()` presses Run on the
+manifest's page, and `press(id)` presses a page's button, after Hammer's checks unless the button skips
+them. With no project behind it, the driver checks an entity's kinds, but not that its picks exist or
+their entry types and tags. Each call carries the page's state on, and the reply is applied as Hammer
+applies it, so a test reads what the user would see: `page`, `values`, `errors`, `messages`, `ended`,
+and `opened`, with `state<T>()` reading the page's state. `resume()` stands for closing the dialog and
+opening the action again, so the next call is `resumed`.
 
 ```kotlin
 val wave = ActionDriver("wave", ::wave, project = "Storm").open()

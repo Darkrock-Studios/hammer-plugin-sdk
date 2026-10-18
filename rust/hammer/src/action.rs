@@ -156,9 +156,10 @@ impl Page {
 }
 
 /// A field of a page. Its value comes back in the next call's input under its key: a string for
-/// `text` and `choice`, a bool, an integer, or for `scenes` a list of scene ids (one id or null when
-/// [Field::single]). Hammer checks `required`, an `int`'s bounds, and a `choice`'s options before
-/// calling, unless the button pressed skips them.
+/// `text` and `choice`, a bool, an integer, for `scenes` a list of scene ids (one id or null when
+/// [Field::single]), and for `entity` an [EntityRef] or null (a list of them when [Field::multiple]).
+/// Hammer checks `required`, an `int`'s bounds, a `choice`'s options, and that an `entity`'s picks
+/// exist and match its filters before calling, unless the button pressed skips them.
 #[derive(Serialize, Clone)]
 pub struct Field {
     pub key: String,
@@ -167,7 +168,7 @@ pub struct Field {
     pub label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
-    /// For `text`, not blank; for `scenes`, not empty.
+    /// For `text`, not blank; for `scenes`, not empty; for `entity`, a pick.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub required: bool,
     /// The initial value; none for the kind's own: false, `min` or 0, the first option, "", or none.
@@ -183,8 +184,19 @@ pub struct Field {
     pub format: TextFormat,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub multiline: bool,
-    #[serde(skip_serializing_if = "is_true")]
-    pub multiple: bool,
+    /// An `entity`'s kinds of item: `scene`, `note`, `entry`, or `event`; all four when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<String>,
+    /// An `entity`'s types of entry: `person`, `place`, `thing`, `event`, or `idea`; any when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub entry_types: Vec<String>,
+    /// An `entity`'s tags: an item needs one of them; any item when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Whether the value is a list; none for the kind's own, a list for `scenes` and one item for
+    /// `entity`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiple: Option<bool>,
 }
 
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -195,6 +207,7 @@ pub enum FieldKind {
     Int,
     Choice,
     Scenes,
+    Entity,
 }
 
 /// What edits a `text` field: an ordinary text field, or the scene editor's, whose value is markdown,
@@ -241,7 +254,10 @@ impl Field {
             options: Vec::new(),
             format: TextFormat::Plain,
             multiline: false,
-            multiple: true,
+            kinds: Vec::new(),
+            entry_types: Vec::new(),
+            tags: Vec::new(),
+            multiple: None,
         }
     }
 
@@ -268,6 +284,13 @@ impl Field {
         Field::new(key, FieldKind::Scenes, label)
     }
 
+    /// An item of the project picked by name: one [EntityRef] or null, or a list with
+    /// [Field::multiple]. [Field::kinds], [Field::entry_types], and [Field::tags] narrow what the
+    /// picker offers. Hammer shows a default that is gone or does not match as empty.
+    pub fn entity(key: impl Into<String>, label: impl Into<String>) -> Field {
+        Field::new(key, FieldKind::Entity, label)
+    }
+
     pub fn hint(mut self, hint: impl Into<String>) -> Field {
         self.hint = Some(hint.into());
         self
@@ -278,7 +301,8 @@ impl Field {
         self
     }
 
-    /// The initial value, such as `"elvish"`, `8`, `true`, or `vec![3, 4]`.
+    /// The initial value, such as `"elvish"`, `8`, `true`, `vec![3, 4]`, or an [EntityRef] (a `Vec` of
+    /// them for an entity with [Field::multiple]).
     pub fn default(mut self, value: impl Into<Value>) -> Field {
         self.default = Some(value.into());
         self
@@ -297,8 +321,54 @@ impl Field {
 
     /// Scenes as one scene, or null, instead of a list.
     pub fn single(mut self) -> Field {
-        self.multiple = false;
+        self.multiple = (self.kind != FieldKind::Entity).then_some(false);
         self
+    }
+
+    /// An entity as a list of items instead of one.
+    pub fn multiple(mut self) -> Field {
+        self.multiple = (self.kind != FieldKind::Scenes).then_some(true);
+        self
+    }
+
+    /// The kinds of item an entity picks: `scene`, `note`, `entry`, or `event`.
+    pub fn kinds(mut self, kinds: &[&str]) -> Field {
+        self.kinds = kinds.iter().map(|it| it.to_string()).collect();
+        self
+    }
+
+    /// The types of entry an entity picks, with `entry` among its kinds: `person`, `place`, `thing`,
+    /// `event`, or `idea`.
+    pub fn entry_types(mut self, types: &[&str]) -> Field {
+        self.entry_types = types.iter().map(|it| it.to_string()).collect();
+        self
+    }
+
+    /// Tags an entity's item needs one of.
+    pub fn tags(mut self, tags: &[&str]) -> Field {
+        self.tags = tags.iter().map(|it| it.to_string()).collect();
+        self
+    }
+}
+
+/// An item of the project, as an `entity` field's value: `kind` is `scene`, `note`, `entry`, or
+/// `event`, and `id` the item's. Read one field as `Option<EntityRef>` and one with
+/// [Field::multiple] as `Vec<EntityRef>`; `Open::new(&it.kind, Some(it.id))` goes to it.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+pub struct EntityRef {
+    pub kind: String,
+    pub id: i64,
+}
+
+impl EntityRef {
+    pub fn new(kind: impl Into<String>, id: i64) -> EntityRef {
+        EntityRef { kind: kind.into(), id }
+    }
+}
+
+impl From<EntityRef> for Value {
+    fn from(entity: EntityRef) -> Value {
+        serde_json::json!({"kind": entity.kind, "id": entity.id})
     }
 }
 
@@ -435,5 +505,55 @@ mod tests {
         assert!(request.resumed);
         let first: Request = serde_json::from_value(json!({"action": "wave", "project": "Storm", "state": null})).unwrap();
         assert!(first.state.is_none() && !first.resumed && first.button.is_none());
+    }
+
+    #[test]
+    fn an_entity_is_one_item_unless_multiple() {
+        let mara = EntityRef::new("entry", 12);
+        let fields = vec![
+            Field::entity("who", "Who"),
+            Field::entity("a", "First")
+                .kinds(&["entry"])
+                .entry_types(&["person"])
+                .tags(&["pov"])
+                .required()
+                .default(mara.clone()),
+            Field::entity("cast", "Cast").multiple().default(vec![mara.clone(), EntityRef::new("scene", 3)]),
+            Field::entity("one", "One").multiple().single(),
+            Field::scenes("scenes", "Scenes").single().multiple(),
+        ];
+        assert_eq!(
+            serde_json::to_value(&fields).unwrap(),
+            json!([
+                {"key": "who", "type": "entity", "label": "Who"},
+                {"key": "a", "type": "entity", "label": "First", "required": true,
+                 "default": {"kind": "entry", "id": 12},
+                 "kinds": ["entry"], "entry_types": ["person"], "tags": ["pov"]},
+                {"key": "cast", "type": "entity", "label": "Cast",
+                 "default": [{"kind": "entry", "id": 12}, {"kind": "scene", "id": 3}], "multiple": true},
+                {"key": "one", "type": "entity", "label": "One"},
+                {"key": "scenes", "type": "scenes", "label": "Scenes"},
+            ])
+        );
+    }
+
+    #[test]
+    fn entity_input_reads_as_entity_refs() {
+        #[derive(Deserialize)]
+        struct Picks {
+            who: Option<EntityRef>,
+            #[serde(default)]
+            cast: Vec<EntityRef>,
+        }
+        let request = |input: Value| -> Request {
+            serde_json::from_value(json!({"action": "meet", "project": "Storm", "input": input})).unwrap()
+        };
+        let picked: Picks = request(json!({"who": {"kind": "entry", "id": 12}, "cast": [{"kind": "event", "id": 4}]}))
+            .input()
+            .unwrap();
+        assert_eq!(picked.who, Some(EntityRef::new("entry", 12)));
+        assert_eq!(picked.cast, vec![EntityRef::new("event", 4)]);
+        let none: Picks = request(json!({"who": null, "cast": []})).input().unwrap();
+        assert!(none.who.is_none() && none.cast.is_empty());
     }
 }
