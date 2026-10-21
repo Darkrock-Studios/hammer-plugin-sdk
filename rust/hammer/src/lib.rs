@@ -22,6 +22,7 @@ use std::sync::Once;
 
 pub mod action;
 pub mod diagnose;
+pub mod http;
 
 /// The host API version this kit targets; the manifest's `api` must match.
 pub const API_VERSION: u32 = 1;

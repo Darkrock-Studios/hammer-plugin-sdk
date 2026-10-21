@@ -8,7 +8,7 @@ Hammer-specific import and exports described in hammer-editor's `docs/CLIENT-PLU
 | --- | --- |
 | `c/include` | The C kit: `hammer.h`, on top of Extism's `extism-pdk.h` (BSD-3, see `EXTISM-PDK-LICENSE`); `hammer_json.h`, a JSON reader that needs no allocation; `hammer_out.h` for output, `hammer_text.h` for words, `hammer_action.h` for actions' requests and replies (messages, documents, and pages of fields and buttons), `hammer_diagnose.h` for checks underlined in the editor, `hammer_progress` for long actions, and `hammer_test.h` for native unit tests |
 | `c/build.sh`, `c/test.sh` | Build C plugin directories into packages, and run their native unit tests |
-| `rust/hammer` | The Rust kit: Hammer's imports, operations, and the cache, with serde for JSON; `action` and `diagnose` types, an action's pages among them, `progress`, byte offsets, an optional `getrandom` backend, and a zeroing allocator for Wizer builds |
+| `rust/hammer` | The Rust kit: Hammer's imports, operations, and the cache, with serde for JSON; `action` and `diagnose` types, an action's pages among them, `progress`, `http` requests to the hosts the manifest names, byte offsets, an optional `getrandom` backend, and a zeroing allocator for Wizer builds |
 | `rust/tools/finish.py` | Makes a module built from crates written for the browser loadable by Hammer: drops wasm-bindgen's leftovers and checks the imports |
 | `kotlin/hammer` | The Kotlin kit: typed requests and replies, an action's pages among them, operations, the cache, and for JVM tests a fake Hammer and `ActionDriver`, which runs an action through its pages as Hammer does |
 | `kotlin/gradle-plugin` | The `hammer.plugin` Gradle plugin: sets up a plugin project and builds its `.hammerplugin` |
