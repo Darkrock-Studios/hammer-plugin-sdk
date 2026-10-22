@@ -99,8 +99,22 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token || secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish -p hammer-plugin-kit
 
+  c:
+    needs: [ci, version]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Pack the C kit
+        run: tools/pack-c.sh "${GITHUB_REF_NAME#v}" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c-kit
+          path: dist/
+
   release:
-    needs: [maven, crates]
+    needs: [maven, crates, c]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -110,8 +124,13 @@ jobs:
           name: hello.hammerplugin
           path: release
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: c-kit
+          path: release
+
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          files: release/hello.hammerplugin
+          files: release/*
