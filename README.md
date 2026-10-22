@@ -22,15 +22,17 @@ Hammer's own plugins, in hammer-plugins, are fuller examples in each language.
 
 ## Using the kits
 
-The Kotlin kit and its Gradle plugin are on Maven Central. The Rust and C kits are not published yet:
-a plugin repository builds against a checkout of this one beside it. [PUBLISHING.md](PUBLISHING.md) has
+The Kotlin kit and its Gradle plugin are on Maven Central, and the Rust kit on crates.io. The C kit is not
+published yet: a plugin repository builds against a checkout of this one beside it. [PUBLISHING.md](PUBLISHING.md) has
 how releases work, and the plan for the rest.
 
 - C: `#include "hammer.h"`, and build with `c/build.sh <plugin directory>`, which puts `c/include` on
   the include path and packs the directory's `manifest.toml`, `settings.toml`, `locales/`, and
   `resources/` with the module. `c/test.sh <plugin directory>` builds and runs its `test.c`.
-- Rust: depend on the kit by path, `hammer = { path = "../hammer-plugin-sdk/rust/hammer" }`, build for
-  `wasm32-unknown-unknown`, and pack the module with `tools/package.sh`.
+- Rust: depend on `hammer-plugin-kit = "<version>"` and write `use hammer::…`; build for
+  `wasm32-unknown-unknown`, and pack the module with `tools/package.sh`. The
+  [Rust template](https://github.com/Darkrock-Studios/hammer-plugin-rust) is a working plugin to start
+  from.
 - Kotlin: apply `id("com.darkrockstudios.hammer.plugin") version "<version>"`, with `mavenCentral()` among
   the repositories in `pluginManagement` and `dependencyResolutionManagement`; it adds
   `com.darkrockstudios.hammer:hammer-plugin-kit` at the same version, and `gradle hammerPlugin` builds the

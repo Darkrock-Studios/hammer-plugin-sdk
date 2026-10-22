@@ -21,8 +21,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "hammer"
-version = "0.2.0"
+name = "hammer-plugin-kit"
+version = "0.5.0"
 dependencies = [
  "getrandom",
  "serde",

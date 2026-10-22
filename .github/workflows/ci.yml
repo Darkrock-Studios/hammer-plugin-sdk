@@ -7,6 +7,21 @@ on:
   workflow_call:
 
 jobs:
+  versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Every kit is released under the SDK's one version.
+      - name: Check the kits agree on a version
+        run: |
+          kotlin=$(sed -n 's/^kitVersion=//p' kotlin/versions.properties)
+          rust=$(sed -n 's/^version = "\(.*\)"/\1/p' rust/hammer/Cargo.toml | head -n 1)
+          if [ "$kotlin" != "$rust" ]; then
+            echo "::error::kotlin/versions.properties says $kotlin, rust/hammer/Cargo.toml says $rust"
+            exit 1
+          fi
+
   kotlin:
     runs-on: ubuntu-latest
     defaults:
@@ -47,7 +62,7 @@ jobs:
 
       # .cargo/config.toml builds for wasm32 by default, so the tests name the runner's own target.
       - name: Test the kit
-        run: cargo test -p hammer --lib --target x86_64-unknown-linux-gnu
+        run: cargo test -p hammer-plugin-kit --lib --target x86_64-unknown-linux-gnu
 
       - name: Build the kit for Hammer
-        run: cargo build -p hammer
+        run: cargo build -p hammer-plugin-kit
