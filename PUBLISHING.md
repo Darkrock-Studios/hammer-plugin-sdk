@@ -1,60 +1,58 @@
 # Publishing the SDK
 
-For now, plugin repositories build against a checkout of this one beside them. The goal is for a plugin
-author to need nothing but the published kit for their language. This is the plan for getting there.
+The Kotlin kit and its Gradle plugin are published to Maven Central. The Rust and C kits are not yet:
+plugin repositories using them build against a checkout of this one beside them. The goal is for a plugin
+author to need nothing but the published kit for their language.
 
 ## Where things stand
 
-| Language | What ships | Name today | Version today |
+| Language | What ships | Name | Version |
 | --- | --- | --- | --- |
-| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`) | `com.darkrockstudios.hammer:plugin-kit` | 0.5.0, in `kotlin/versions.properties` |
-| Kotlin | The Gradle plugin, which adds the kit by those coordinates when no kit project is named | `hammer.plugin` | The kit's, compiled in |
+| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.5.0, in `kotlin/versions.properties` |
+| Kotlin | The Gradle plugin, on Maven Central, which adds the kit at its own version | `com.darkrockstudios.hammer.plugin` (artifact `com.darkrockstudios.hammer:hammer-gradle-plugin`) | The kit's |
 | Rust | The kit crate, and `rust/tools/finish.py` | `hammer` (already taken on crates.io) | 0.2.0 |
 | C | The headers in `c/include`, `c/build.sh`, `c/test.sh` | None | None |
 | All | `tools/package.sh` | None | None |
 
-Every kit already states the host API version it targets (`HAMMER_API_VERSION`, `API_VERSION`), and the
-Gradle plugin refuses a manifest whose `api` differs.
+Every kit states the host API version it targets (`HAMMER_API_VERSION`, `API_VERSION`), and the Gradle
+plugin refuses a manifest whose `api` differs.
 
-## Before any release
+## Releasing
 
-1. **License.** MIT, for this repository, hammer-plugins, and hammer-plugin-development, each with a
-   `LICENSE` already; every package's metadata names it too. The C kit also ships Extism's BSD-3
-   notice (`c/include/EXTISM-PDK-LICENSE`) with `extism-pdk.h`.
-2. **A public home.** Push this repository to GitHub (`Wavesonics/hammer-plugin-sdk`). Releases,
-   issues, and the crate's and POM's `repository` links point there.
-3. **One version for the SDK.** Every kit is released together under one version (`sdk-v0.5.0`), so a
-   plugin author reads one number, and a host API change moves every language at once. The versions
-   stay 0.x until Hammer ships plugins in a release; after that, a new host API version is a new major
-   version. `kotlin/versions.properties` becomes the SDK's one version file, read by every build.
-4. **Names that are free.** Proposed below; each needs claiming before the first release.
-5. **CI.** A GitHub Actions workflow that builds and tests every kit, plus `hello`, on each push and pull
-   request, and a release workflow started by an `sdk-v*` tag that publishes all of them.
+Every kit is released together under one version, so a plugin author reads one number, and a host API
+change moves every language at once. `kotlin/versions.properties` is the SDK's version file. The versions
+stay 0.x until Hammer ships plugins in a release; after that, a new host API version is a new major
+version.
 
-## Kotlin: Maven Central and the Gradle Plugin Portal
+1. Set `kitVersion` in `kotlin/versions.properties`, and merge to `main` with CI passing.
+2. Tag the commit `v<kitVersion>`, such as `v0.5.0`, and push the tag.
+3. `.github/workflows/release.yml` runs CI, checks that the tag matches `kitVersion`, publishes the kit and
+   the Gradle plugin to Maven Central (released automatically, so they appear within the hour), and makes
+   a GitHub release with generated notes and `hello.hammerplugin`. A tag with a `-`, such as
+   `v0.6.0-rc1`, is marked a prerelease.
 
-The easiest of the three: ComposeTextEditor already publishes to Maven Central under
-`com.darkrockstudios` with `com.vanniktech.maven.publish`, `publishToMavenCentral`, and
-`signAllPublications`, so the namespace, the signing key, and the Central Portal account exist.
+The workflow runs in the repository's `Publish` environment, which holds the Central Portal token as
+`OSSRH_USERNAME` and `OSSRH_PASSWORD`, and the signing key as `SIGNING_KEY` (ASCII-armored) and
+`SIGNING_PASSWORD`, the same account and key ComposeTextEditor publishes with. To try a release locally,
+`./gradlew :hammer-plugin-kit:publishToMavenLocal` and `./gradlew -p gradle-plugin publishToMavenLocal` in
+`kotlin/` publish unsigned to `~/.m2`.
 
-- **The kit** goes to Maven Central as `com.darkrockstudios.hammer:hammer-plugin-kit`, with the same
-  plugin setup as ComposeTextEditor. Kotlin Multiplatform publishes the `jvm` and `wasmWasi` variants
-  and the root module, so a plugin's `commonMain` resolves the right one. The `jvm` variant, which
-  plugins use for tests, also depends on tomlkt, for `ActionDriver` to read the manifest.
-- **The Gradle plugin** goes to the Gradle Plugin Portal with an id under a domain we own,
-  `com.darkrockstudios.hammer.plugin`, since the Portal expects ids to be namespaced. `hammer.plugin`
-  stays as a second id through 0.x so existing builds keep working. It keeps adding the kit by
-  coordinates, so an author writes only:
+## Kotlin
 
-  ```kotlin
-  plugins {
-  	id("com.darkrockstudios.hammer.plugin") version "0.5.0"
-  }
-  ```
+Both artifacts are built with `com.vanniktech.maven.publish`, as ComposeTextEditor's are. Kotlin
+Multiplatform publishes the `jvm` and `wasmWasi` variants and the root module, so a plugin's `commonMain`
+resolves the right one; the `jvm` variant, which plugins use for tests, also depends on tomlkt, for
+`ActionDriver` to read the manifest. The Gradle plugin is published to Central with its plugin marker, so
+an author adds `mavenCentral()` to `pluginManagement`'s repositories and writes only:
 
-- The Gradle plugin also pins the Kotlin Gradle plugin it applies (2.4.10 today). Each SDK release
-  records which Kotlin version it was tested with, since Hammer is tested against one Kotlin/Wasm
-  output.
+```kotlin
+plugins {
+	id("com.darkrockstudios.hammer.plugin") version "0.5.0"
+}
+```
+
+The Gradle plugin pins the Kotlin Gradle plugin it applies (2.4.10 today). Each SDK release records which
+Kotlin version it was tested with, since Hammer is tested against one Kotlin/Wasm output.
 
 ## Rust: crates.io
 
@@ -77,7 +75,7 @@ scripts, or vendors `include/` into their repository. The headers gain a
 
 ## The same GitHub release
 
-Each `sdk-v*` tag makes one GitHub release holding the C tarball, `tools/package.sh` and
+Each `v*` tag makes one GitHub release holding the C tarball, `tools/package.sh` and
 `rust/tools/finish.py` (until `cargo-hammer` exists), the built `hello.hammerplugin`, and release
 notes listing the host API version, the Kotlin version, and what changed in each kit.
 
@@ -96,11 +94,11 @@ notes listing the host API version, the Kotlin version, and what changed in each
 
 ## Order
 
-1. License, GitHub repository, one SDK version, CI.
-2. Set up Kotlin publishing on the account and setup that already exist, tried against `mavenLocal`.
-3. Set up the Rust crate, tried with `cargo publish --dry-run`. crates.io holds no names in reserve, so
+The license, the GitHub repository, the one SDK version, CI, and the Kotlin release are in place. What's
+left, in order:
+
+1. Set up the Rust crate, tried with `cargo publish --dry-run`. crates.io holds no names in reserve, so
    if `hammer-plugin` is at risk, an early 0.x release claims it.
-4. The C tarball and the release workflow that makes the GitHub release.
-5. The first release of all three.
-6. Switch hammer-plugins and hammer-plugin-development to the published kits.
-7. `cargo-hammer`, the documentation move, and the templates.
+2. The C tarball, added to the release workflow's GitHub release.
+3. Switch hammer-plugins and hammer-plugin-development to the published kits.
+4. `cargo-hammer`, the documentation move, and the templates.

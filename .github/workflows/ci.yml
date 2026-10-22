@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  kotlin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kotlin
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Test the kit, the generator, and hello
+        run: ./gradlew --no-daemon :hammer-plugin-kit:jvmTest :codegen:test :codegen:checkOperations :hello:jvmTest :hello:hammerPlugin
+
+      - name: Build the Gradle plugin
+        run: ./gradlew --no-daemon -p gradle-plugin build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hello.hammerplugin
+          path: kotlin/hello/build/hello.hammerplugin
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # .cargo/config.toml builds for wasm32 by default, so the tests name the runner's own target.
+      - name: Test the kit
+        run: cargo test -p hammer --lib --target x86_64-unknown-linux-gnu
+
+      - name: Build the kit for Hammer
+        run: cargo build -p hammer

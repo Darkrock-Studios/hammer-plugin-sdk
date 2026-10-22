@@ -14,5 +14,5 @@ dependencyResolutionManagement {
 	}
 }
 
-include("plugin-kit", "hello", "codegen")
-project(":plugin-kit").projectDir = file("hammer")
+include("hammer-plugin-kit", "hello", "codegen")
+project(":hammer-plugin-kit").projectDir = file("hammer")

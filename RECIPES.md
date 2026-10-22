@@ -7,17 +7,37 @@ hammer-editor's `docs/CLIENT-PLUGINS.md` has the full rules for each.
 ## A new plugin
 
 A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and optionally
-`settings.toml`, translations in `locales/`, and files to read at run time in `resources/`. In `kotlin/`:
+`settings.toml`, translations in `locales/`, and files to read at run time in `resources/`.
 
-1. Make a directory, say `kotlin/greeter`, with `build.gradle.kts`:
+1. Make a Gradle project, say `greeter`, with `settings.gradle.kts`:
+
+   ```kotlin
+   pluginManagement {
+   	repositories {
+   		gradlePluginPortal()
+   		mavenCentral()
+   	}
+   }
+
+   dependencyResolutionManagement {
+   	repositories {
+   		mavenCentral()
+   	}
+   }
+
+   rootProject.name = "greeter"
+   ```
+
+2. Apply the Gradle plugin in `build.gradle.kts`. It sets up Kotlin Multiplatform, adds the kit
+   (`com.darkrockstudios.hammer:hammer-plugin-kit`, at the plugin's own version), and adds the
+   `hammerPlugin` task.
 
    ```kotlin
    plugins {
-   	id("hammer.plugin")
+   	id("com.darkrockstudios.hammer.plugin") version "0.5.0"
    }
    ```
 
-2. Add `"greeter"` to the `include(...)` in `kotlin/settings.gradle.kts`.
 3. Write `manifest.toml`. Every plugin starts the same way; the recipes below add to it.
 
    ```toml
@@ -34,8 +54,12 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 
 4. Put the plugin's logic in `src/commonMain/kotlin`, where JVM tests can reach it, and its exports in
    `src/wasmWasiMain/kotlin/Exports.kt`.
-5. Build with `gradle :greeter:hammerPlugin`, which writes `greeter/build/greeter.hammerplugin`, and
-   install it in Hammer from Settings, Plugins.
+5. Build with `gradle hammerPlugin`, which writes `build/greeter.hammerplugin`, and install it in
+   Hammer from Settings, Plugins.
+
+To try a recipe inside this repository instead, add a directory under `kotlin/` next to `hello`, apply
+`id("com.darkrockstudios.hammer.plugin")` without a version, and add it to the `include(...)` in
+`kotlin/settings.gradle.kts`; the kit then comes from this checkout.
 
 A module has one export of each kind (`export`, `action`, `diagnose`, `command`), so a plugin with two
 actions tells them apart by name in its one `action` export. `kotlin/hello`'s
