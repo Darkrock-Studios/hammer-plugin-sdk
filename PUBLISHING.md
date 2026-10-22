@@ -39,7 +39,9 @@ The workflow runs in the repository's `Publish` environment, which holds the Cen
 `SIGNING_PASSWORD`, the same account and key ComposeTextEditor publishes with. crates.io needs no
 secret: the crate's settings there name this repository's `release.yml`, in the `Publish` environment, as
 a trusted publisher, and the workflow trades GitHub's OIDC token for a short-lived one. Trusted publishing
-can't create a crate, so 0.6.0 was published by hand with an API token; the workflow skips a version
+can't create a crate, so the first, 0.6.0, was published with a crates.io API token stored as
+`CARGO_REGISTRY_TOKEN` in the `Publish` environment; while that secret exists the workflow uses it in place
+of trusted publishing, so delete it once the trusted publisher is set up. The workflow skips a version
 crates.io already has. To try a release locally,
 `./gradlew :hammer-plugin-kit:publishToMavenLocal` and `./gradlew -p gradle-plugin publishToMavenLocal` in
 `kotlin/` publish unsigned to `~/.m2`.
