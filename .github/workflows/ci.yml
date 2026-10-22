@@ -23,6 +23,26 @@ jobs:
             exit 1
           fi
 
+      # The docs' examples name the version too, and the developer site shows RECIPES.md as it is at each tag.
+      - name: Check the docs name that version
+        run: |
+          version=$(sed -n 's/^kitVersion=//p' kotlin/versions.properties)
+          minor=${version%.*}
+          stale=0
+          for file in RECIPES.md PUBLISHING.md; do
+            if grep -n 'hammer.plugin") version "' "$file" | grep -v "\"$version\""; then
+              echo "::error file=$file::names a Gradle plugin version other than $version"
+              stale=1
+            fi
+          done
+          for file in PUBLISHING.md rust/hammer/README.md; do
+            if grep -n 'hammer-plugin-kit = "' "$file" | grep -v "\"$minor\""; then
+              echo "::error file=$file::names a crate version other than $minor"
+              stale=1
+            fi
+          done
+          exit $stale
+
   kotlin:
     runs-on: ubuntu-latest
     defaults:

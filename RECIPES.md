@@ -1,8 +1,8 @@
 # Plugin recipes
 
 Hello-world versions of each kind of Hammer plugin, in Kotlin. Every recipe is part of one working
-plugin, [`kotlin/hello`](kotlin/hello), so they build and are tested; copy the parts you need.
-hammer-editor's `docs/CLIENT-PLUGINS.md` has the full rules for each.
+plugin, the SDK's [`kotlin/hello`](kotlin/hello), so they build and are tested; copy the parts you need.
+The [API reference](https://plugins.hammer.ink/reference) has the full rules for each.
 
 ## A new plugin
 
@@ -34,7 +34,7 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 
    ```kotlin
    plugins {
-   	id("com.darkrockstudios.hammer.plugin") version "0.6.0"
+   	id("com.darkrockstudios.hammer.plugin") version "0.7.0"
    }
    ```
 
@@ -57,9 +57,9 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 5. Build with `gradle hammerPlugin`, which writes `build/greeter.hammerplugin`, and install it in
    Hammer from Settings, Plugins.
 
-To try a recipe inside this repository instead, add a directory under `kotlin/` next to `hello`, apply
-`id("com.darkrockstudios.hammer.plugin")` without a version, and add it to the `include(...)` in
-`kotlin/settings.gradle.kts`; the kit then comes from this checkout.
+To try a recipe inside a checkout of the SDK instead, add a directory under `kotlin/` next to `hello`,
+apply `id("com.darkrockstudios.hammer.plugin")` without a version, and add it to the `include(...)` in
+`kotlin/settings.gradle.kts`; the kit then comes from the checkout.
 
 A module has one export of each kind (`export`, `action`, `diagnose`, `command`), so a plugin with two
 actions tells them apart by name in its one `action` export. `kotlin/hello`'s
