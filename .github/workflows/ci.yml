@@ -67,3 +67,11 @@ jobs:
 
       - name: Build the kit for Hammer
         run: cargo build -p hammer-plugin-kit
+
+  c:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Test the kit
+        run: c/test.sh c/tests

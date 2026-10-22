@@ -27,6 +27,7 @@ pub mod http;
 pub mod ops;
 #[cfg(test)]
 mod ops_tests;
+mod word_classes;
 #[cfg(test)]
 mod text_tests;
 
@@ -273,27 +274,79 @@ pub struct Word<'a> {
     pub end: usize,
 }
 
-/// The words in `text`, in order: runs of letters, with an apostrophe (`'`, `’`, or `ʼ`) between two
-/// letters kept inside, so "don't" and "l'arbre" are one word each. Digits, hyphens, and everything else
-/// end a word. `ʼ` is itself a letter, as in Ukrainian. The C kit's `hammer_words` and the Kotlin kit's
-/// `words` split text the same way.
+/// The words in `text`, in order. A word is a run of letters, with any combining marks on them, so
+/// accents, Indic vowel signs, and Arabic vowel marks stay in their word. An apostrophe (`'` or `’`), the
+/// Catalan middle dot, Hebrew's geresh and gershayim, ZWNJ, ZWJ, or a soft hyphen between two letters
+/// stays inside too, so "don't", "l'arbre", and "col·lecció" are one word each. Digits, hyphens, and
+/// everything else end a word.
+///
+/// Chinese and Japanese put no spaces between words, so each of their characters (Han, kana, and
+/// Bopomofo) is a word of its own. Thai, Lao, Khmer, and Burmese don't either, but there each run of
+/// letters is one word.
+///
+/// Letters come from a table of Unicode 17, the same one the Kotlin kit's `words` and the C kit's
+/// `hammer_words` use, so all three split text the same way.
 pub fn words(text: &str) -> impl Iterator<Item = Word<'_>> {
-    let mut chars = text.char_indices().peekable();
+    let class_at = move |at: usize| text[at..].chars().next().map_or(word_class::OTHER, word_class::of);
+    let after = move |at: usize| at + text[at..].chars().next().map_or(0, char::len_utf8);
+    let mut at = 0;
     std::iter::from_fn(move || {
-        let (start, _) = chars.find(|(_, c)| c.is_alphabetic())?;
-        let mut end = text.len();
-        while let Some(&(at, c)) = chars.peek() {
-            let inside = c.is_alphabetic()
-                || (matches!(c, '\'' | '\u{2019}' | '\u{02BC}')
-                    && text[at + c.len_utf8()..].chars().next().is_some_and(char::is_alphabetic));
-            if !inside {
-                end = at;
-                break;
+        while at < text.len() {
+            let start = at;
+            let class = class_at(at);
+            at = after(at);
+            match class {
+                word_class::IDEOGRAPH => {
+                    while class_at(at) == word_class::MARK {
+                        at = after(at);
+                    }
+                }
+                word_class::LETTER => loop {
+                    let next = class_at(at);
+                    let inside = next == word_class::LETTER
+                        || next == word_class::MARK
+                        || (next == word_class::JOINER && class_at(after(at)) == word_class::LETTER);
+                    if !inside {
+                        break;
+                    }
+                    at = after(at);
+                },
+                _ => continue,
             }
-            chars.next();
+            return Some(Word { text: &text[start..at], start, end: at });
         }
-        Some(Word { text: &text[start..end], start, end })
+        None
     })
+}
+
+mod word_class {
+    pub const OTHER: u8 = 0;
+    pub const LETTER: u8 = 1;
+    pub const MARK: u8 = 2;
+    pub const IDEOGRAPH: u8 = 3;
+    pub const JOINER: u8 = 4;
+
+    pub fn of(c: char) -> u8 {
+        match c {
+            'a'..='z' | 'A'..='Z' => LETTER,
+            '\'' => JOINER,
+            '\0'..='\x7F' => OTHER,
+            _ => {
+                let code = c as u32;
+                crate::word_classes::WORD_CLASSES
+                    .binary_search_by(|&(first, last, _)| {
+                        if last < code {
+                            std::cmp::Ordering::Less
+                        } else if first > code {
+                            std::cmp::Ordering::Greater
+                        } else {
+                            std::cmp::Ordering::Equal
+                        }
+                    })
+                    .map_or(OTHER, |i| crate::word_classes::WORD_CLASSES[i].2)
+            }
+        }
+    }
 }
 
 /// An allocator that zeroes memory as it is freed. A module pre-initialized with Wizer keeps only its
