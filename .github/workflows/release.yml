@@ -60,6 +60,7 @@ jobs:
     # crates.io trusts this workflow through GitHub's OIDC token. Trusted publishing can't create a crate, so
     # a CARGO_REGISTRY_TOKEN secret in the Publish environment, when there is one, is used instead.
     permissions:
+      contents: read
       id-token: write
     defaults:
       run:
