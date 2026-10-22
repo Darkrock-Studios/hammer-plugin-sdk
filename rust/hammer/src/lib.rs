@@ -21,7 +21,11 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::Once;
 
 pub mod action;
+pub mod base64;
 pub mod diagnose;
+pub mod ops;
+#[cfg(test)]
+mod ops_tests;
 
 /// The host API version this kit targets; the manifest's `api` must match.
 pub const API_VERSION: u32 = 1;
