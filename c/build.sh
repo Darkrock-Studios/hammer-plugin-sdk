@@ -5,6 +5,9 @@
 # Usage: build.sh <plugin directory>...
 set -e
 kit=$(cd "$(dirname "$0")" && pwd)
+# Beside this script in the release tarball, in tools/ in the repository.
+package="$kit/package.sh"
+[ -f "$package" ] || package="$kit/../tools/package.sh"
 [ $# -gt 0 ] || { echo "Usage: $0 <plugin directory>..." >&2; exit 2; }
 for dir in "$@"; do
 	name=$(basename "$(cd "$dir" && pwd)")
@@ -12,6 +15,6 @@ for dir in "$@"; do
 	clang --target=wasm32-unknown-unknown -O2 -nostdlib -I "$kit/include" \
 		-Wl,--no-entry -Wl,--export-dynamic \
 		-o "$dir/build/$name.wasm" "$dir/$name.c"
-	if [ -f "$dir/manifest.toml" ]; then "$kit/../tools/package.sh" "$dir" "$dir/build/$name.wasm"; fi
+	if [ -f "$dir/manifest.toml" ]; then "$package" "$dir" "$dir/build/$name.wasm"; fi
 	echo "Built $name ($(wc -c < "$dir/build/$name.wasm") bytes)"
 done

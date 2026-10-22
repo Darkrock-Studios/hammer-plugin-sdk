@@ -16,19 +16,23 @@ Hammer-specific import and exports described in hammer-editor's `docs/CLIENT-PLU
 | `kotlin/gradle-plugin` | The `com.darkrockstudios.hammer.plugin` Gradle plugin: sets up a plugin project and builds its `.hammerplugin` |
 | `kotlin/hello` | One small example of each kind of plugin, which [RECIPES.md](RECIPES.md) walks through: an export, actions replying with a message, with a document (one with fields and progress, one picking a character), and with two pages carrying state, a text check, and a command |
 | `tools/package.sh` | Packs a plugin directory and its built module into a `.hammerplugin` |
+| `tools/pack-c.sh` | Packs the C kit into the tarball each release carries |
 
 New to writing plugins? [RECIPES.md](RECIPES.md) has a hello-world version of each kind, in Kotlin.
 Hammer's own plugins, in hammer-plugins, are fuller examples in each language.
 
 ## Using the kits
 
-The Kotlin kit and its Gradle plugin are on Maven Central, and the Rust kit on crates.io. The C kit is not
-published yet: a plugin repository builds against a checkout of this one beside it. [PUBLISHING.md](PUBLISHING.md) has
-how releases work, and the plan for the rest.
+The Kotlin kit and its Gradle plugin are on Maven Central, the Rust kit on crates.io, and the C kit on
+each [GitHub release](https://github.com/Darkrock-Studios/hammer-plugin-sdk/releases) as
+`hammer-plugin-sdk-c-<version>.tar.gz`. [PUBLISHING.md](PUBLISHING.md) has how releases work, and the plan
+for the rest.
 
-- C: `#include "hammer.h"`, and build with `c/build.sh <plugin directory>`, which puts `c/include` on
-  the include path and packs the directory's `manifest.toml`, `settings.toml`, `locales/`, and
-  `resources/` with the module. `c/test.sh <plugin directory>` builds and runs its `test.c`.
+- C: `#include "hammer.h"`, and build with the tarball's `build.sh <plugin directory>` (`c/build.sh` here),
+  which puts `include/` on the include path and packs the directory's `manifest.toml`, `settings.toml`,
+  `locales/`, and `resources/` with the module. `test.sh <plugin directory>` builds and runs its
+  `test.c`. The [C template](https://github.com/Darkrock-Studios/hammer-plugin-c) is a working plugin to
+  start from, with the headers vendored.
 - Rust: depend on `hammer-plugin-kit = "<version>"` and write `use hammer::…`; build for
   `wasm32-unknown-unknown`, and pack the module with `tools/package.sh`. The
   [Rust template](https://github.com/Darkrock-Studios/hammer-plugin-rust) is a working plugin to start

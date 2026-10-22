@@ -68,6 +68,9 @@
 // The host API version this header targets; the manifest's `api` must match.
 #define HAMMER_API_VERSION 1
 
+// The SDK release these headers are from, for a plugin that keeps a copy of them.
+#define HAMMER_KIT_VERSION "0.6.0"
+
 // What hammer_must_alloc reports; define it before including this header to say it for your plugin.
 #ifndef HAMMER_OUT_OF_MEMORY
 #define HAMMER_OUT_OF_MEMORY "The plugin ran out of memory"

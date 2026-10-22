@@ -17,8 +17,9 @@ jobs:
         run: |
           kotlin=$(sed -n 's/^kitVersion=//p' kotlin/versions.properties)
           rust=$(sed -n 's/^version = "\(.*\)"/\1/p' rust/hammer/Cargo.toml | head -n 1)
-          if [ "$kotlin" != "$rust" ]; then
-            echo "::error::kotlin/versions.properties says $kotlin, rust/hammer/Cargo.toml says $rust"
+          c=$(sed -n 's/^#define HAMMER_KIT_VERSION "\(.*\)"/\1/p' c/include/hammer.h)
+          if [ "$kotlin" != "$rust" ] || [ "$kotlin" != "$c" ]; then
+            echo "::error::kotlin/versions.properties says $kotlin, rust/hammer/Cargo.toml says $rust, c/include/hammer.h says $c"
             exit 1
           fi
 

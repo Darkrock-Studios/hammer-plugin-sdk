@@ -1,8 +1,8 @@
 # Publishing the SDK
 
-The Kotlin kit and its Gradle plugin are published to Maven Central, and the Rust kit to crates.io. The C
-kit is not yet: plugin repositories using it build against a checkout of this one beside them. The goal is for a plugin
-author to need nothing but the published kit for their language.
+The Kotlin kit and its Gradle plugin are published to Maven Central, the Rust kit to crates.io, and the C
+kit as a tarball on each GitHub release. The goal is for a plugin author to need nothing but the published
+kit for their language.
 
 ## Where things stand
 
@@ -12,7 +12,7 @@ author to need nothing but the published kit for their language.
 | Kotlin | The Gradle plugin, on Maven Central, which adds the kit at its own version | `com.darkrockstudios.hammer.plugin` (artifact `com.darkrockstudios.hammer:hammer-gradle-plugin`) | The kit's |
 | Rust | The kit crate, on crates.io, whose library is `hammer` | `hammer-plugin-kit` | The SDK's, in `rust/hammer/Cargo.toml` |
 | Rust | `rust/tools/finish.py` | None | None |
-| C | The headers in `c/include`, `c/build.sh`, `c/test.sh` | None | None |
+| C | The headers in `c/include`, `c/build.sh`, `c/test.sh`, and `tools/package.sh`, as a GitHub release asset | `hammer-plugin-sdk-c-<version>.tar.gz` | The SDK's, in `HAMMER_KIT_VERSION` in `c/include/hammer.h` |
 | All | `tools/package.sh` | None | None |
 
 Every kit states the host API version it targets (`HAMMER_API_VERSION`, `API_VERSION`), and the Gradle
@@ -21,17 +21,18 @@ plugin refuses a manifest whose `api` differs.
 ## Releasing
 
 Every kit is released together under one version, so a plugin author reads one number, and a host API
-change moves every language at once. It's `kitVersion` in `kotlin/versions.properties` and `version` in
-`rust/hammer/Cargo.toml`, and CI fails when they differ. The versions
+change moves every language at once. It's `kitVersion` in `kotlin/versions.properties`, `version` in
+`rust/hammer/Cargo.toml`, and `HAMMER_KIT_VERSION` in `c/include/hammer.h`, and CI fails when they differ. The versions
 stay 0.x until Hammer ships plugins in a release; after that, a new host API version is a new major
 version.
 
-1. Set the version in `kotlin/versions.properties` and `rust/hammer/Cargo.toml`, and merge to `main`
-   with CI passing.
+1. Set the version in `kotlin/versions.properties`, `rust/hammer/Cargo.toml`, and `c/include/hammer.h`,
+   and merge to `main` with CI passing.
 2. Tag the commit `v<kitVersion>`, such as `v0.5.0`, and push the tag.
 3. `.github/workflows/release.yml` runs CI, checks that the tag matches the version, publishes the Kotlin
    kit and the Gradle plugin to Maven Central (released automatically, so they appear within the hour) and
-   the Rust kit to crates.io, and makes a GitHub release with generated notes and `hello.hammerplugin`. A tag with a `-`, such as
+   the Rust kit to crates.io, and makes a GitHub release with generated notes, `hello.hammerplugin`, and the
+   C kit's tarball and its checksum. A tag with a `-`, such as
    `v0.6.0-rc1`, is marked a prerelease.
 
 The workflow runs in the repository's `Publish` environment, which holds the Central Portal token as
@@ -75,11 +76,12 @@ Kotlin version it was tested with, since Hammer is tested against one Kotlin/Was
 
 ## C: GitHub releases
 
-C has no package registry worth targeting, so the C kit is a release asset:
-`hammer-plugin-sdk-c-0.6.0.tar.gz` with `include/`, `build.sh`, `test.sh`, `package.sh`, both licenses,
-and a SHA-256 checksum next to it. An author unpacks it anywhere and passes its directory to the
-scripts, or vendors `include/` into their repository. The headers gain a
-`HAMMER_KIT_VERSION` beside `HAMMER_API_VERSION`.
+C has no package registry worth targeting, so the C kit is a release asset that `tools/pack-c.sh` makes:
+`hammer-plugin-sdk-c-<version>.tar.gz` with `include/`, `build.sh`, `test.sh`, `package.sh`, and the
+SDK's license (Extism's is in `include/`), and a SHA-256 checksum next to it. An author unpacks it
+anywhere and passes plugin directories to its scripts, or vendors `include/` into their repository, as
+the C template does. `HAMMER_KIT_VERSION` in `hammer.h` says which release a copy of the headers is
+from.
 
 ## The same GitHub release
 
@@ -100,14 +102,14 @@ notes listing the host API version, the Kotlin version, and what changed in each
 - **Templates.** A starter repository per language, with the build, a test, and a CI workflow, for
   GitHub's "Use this template". Kotlin's is
   [hammer-plugin-kotlin](https://github.com/Darkrock-Studios/hammer-plugin-kotlin) and Rust's
-  [hammer-plugin-rust](https://github.com/Darkrock-Studios/hammer-plugin-rust); `hammer-plugin-c` follows
-  once that kit is published.
+  [hammer-plugin-rust](https://github.com/Darkrock-Studios/hammer-plugin-rust), and C's
+  [hammer-plugin-c](https://github.com/Darkrock-Studios/hammer-plugin-c), which vendors the headers.
 
 ## Order
 
-The license, the GitHub repository, the one SDK version, CI, and the Kotlin and Rust releases are in place. What's
-left, in order:
+The license, the GitHub repository, the one SDK version, CI, the Kotlin, Rust, and C releases, and a
+template per language are in place. hammer-plugins takes the Rust kit from crates.io. What's left, in
+order:
 
-1. The C tarball, added to the release workflow's GitHub release.
-2. Switch hammer-plugins and hammer-plugin-development to the published kits.
-3. `cargo-hammer`, the documentation move, and the C template.
+1. Switch the rest of hammer-plugins (Kotlin and C), and hammer-plugin-development, to the published kits.
+2. `cargo-hammer`, and the documentation move.
