@@ -412,26 +412,20 @@ label = "Very"
 
 ```kotlin
 fun findVery(request: DiagnoseRequest): List<Diagnostic> = request.paragraphs.flatMapIndexed { paragraph, text ->
-	val found = mutableListOf<Diagnostic>()
-	var at = text.indexOf("very", ignoreCase = true)
-	while (at >= 0) {
-		val end = at + 4
-		val word = (at == 0 || !text[at - 1].isLetter()) && (end == text.length || !text[end].isLetter())
-		if (word) {
-			val space = if (end < text.length && text[end] == ' ') 1 else 0
-			found += Diagnostic(paragraph, at, end + space, "“Very” rarely helps", listOf(Fix("", "Remove “very”")))
-		}
-		at = text.indexOf("very", end, ignoreCase = true)
+	text.words().filter { it.text.equals("very", ignoreCase = true) }.map { word ->
+		val end = if (text.getOrNull(word.end) == ' ') word.end + 1 else word.end
+		Diagnostic(paragraph, word.start, end, "“Very” rarely helps", listOf(Fix("", "Remove “very”")))
 	}
-	found
 }
 
 @WasmExport
 fun diagnose(): Int = diagnose(::findVery)
 ```
 
-A fix shows as its replacement unless it has a label, which it needs when the replacement is empty.
-Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so text checks search by hand.
+`words()` splits a paragraph into its words, with each one's `start` and `end`, so "very" inside
+"every" isn't a match. A fix shows as its replacement unless it has a label, which it needs when the
+replacement is empty. Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so search with `words()` and
+`String`'s own functions rather than a `Regex`.
 
 ## A command-line command
 

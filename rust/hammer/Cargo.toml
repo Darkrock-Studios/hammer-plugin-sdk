@@ -1,6 +1,6 @@
 [package]
 name = "hammer-plugin-kit"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Write plugins for the Hammer editor in Rust: Hammer's imports, typed operations, and the action and text check types."

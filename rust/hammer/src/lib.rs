@@ -27,6 +27,8 @@ pub mod http;
 pub mod ops;
 #[cfg(test)]
 mod ops_tests;
+#[cfg(test)]
+mod text_tests;
 
 /// The host API version this kit targets; the manifest's `api` must match.
 pub const API_VERSION: u32 = 1;
@@ -261,6 +263,37 @@ pub fn progress(fraction: Option<f64>, message: Option<&str>) {
 /// characters becomes the byte range Hammer expects.
 pub fn char_byte_offsets(text: &str) -> Vec<usize> {
     text.char_indices().map(|(at, _)| at).chain(std::iter::once(text.len())).collect()
+}
+
+/// A word in a text: `text`, from byte `start` up to `end`, the offsets a [`diagnose::Diagnostic`] takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Word<'a> {
+    pub text: &'a str,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// The words in `text`, in order: runs of letters, with an apostrophe (`'`, `’`, or `ʼ`) between two
+/// letters kept inside, so "don't" and "l'arbre" are one word each. Digits, hyphens, and everything else
+/// end a word. `ʼ` is itself a letter, as in Ukrainian. The C kit's `hammer_words` and the Kotlin kit's
+/// `words` split text the same way.
+pub fn words(text: &str) -> impl Iterator<Item = Word<'_>> {
+    let mut chars = text.char_indices().peekable();
+    std::iter::from_fn(move || {
+        let (start, _) = chars.find(|(_, c)| c.is_alphabetic())?;
+        let mut end = text.len();
+        while let Some(&(at, c)) = chars.peek() {
+            let inside = c.is_alphabetic()
+                || (matches!(c, '\'' | '\u{2019}' | '\u{02BC}')
+                    && text[at + c.len_utf8()..].chars().next().is_some_and(char::is_alphabetic));
+            if !inside {
+                end = at;
+                break;
+            }
+            chars.next();
+        }
+        Some(Word { text: &text[start..end], start, end })
+    })
 }
 
 /// An allocator that zeroes memory as it is freed. A module pre-initialized with Wizer keeps only its
