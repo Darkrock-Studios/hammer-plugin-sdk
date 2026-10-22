@@ -8,7 +8,7 @@ author to need nothing but the published kit for their language.
 
 | Language | What ships | Name | Version |
 | --- | --- | --- | --- |
-| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.5.0, in `kotlin/versions.properties` |
+| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.6.0, in `kotlin/versions.properties` |
 | Kotlin | The Gradle plugin, on Maven Central, which adds the kit at its own version | `com.darkrockstudios.hammer.plugin` (artifact `com.darkrockstudios.hammer:hammer-gradle-plugin`) | The kit's |
 | Rust | The kit crate, on crates.io, whose library is `hammer` | `hammer-plugin-kit` | The SDK's, in `rust/hammer/Cargo.toml` |
 | Rust | `rust/tools/finish.py` | None | None |
@@ -38,7 +38,9 @@ The workflow runs in the repository's `Publish` environment, which holds the Cen
 `OSSRH_USERNAME` and `OSSRH_PASSWORD`, and the signing key as `SIGNING_KEY` (ASCII-armored) and
 `SIGNING_PASSWORD`, the same account and key ComposeTextEditor publishes with. crates.io needs no
 secret: the crate's settings there name this repository's `release.yml`, in the `Publish` environment, as
-a trusted publisher, and the workflow trades GitHub's OIDC token for a short-lived one. To try a release locally,
+a trusted publisher, and the workflow trades GitHub's OIDC token for a short-lived one. Trusted publishing
+can't create a crate, so 0.6.0 was published by hand with an API token; the workflow skips a version
+crates.io already has. To try a release locally,
 `./gradlew :hammer-plugin-kit:publishToMavenLocal` and `./gradlew -p gradle-plugin publishToMavenLocal` in
 `kotlin/` publish unsigned to `~/.m2`.
 
@@ -52,7 +54,7 @@ an author adds `mavenCentral()` to `pluginManagement`'s repositories and writes 
 
 ```kotlin
 plugins {
-	id("com.darkrockstudios.hammer.plugin") version "0.5.0"
+	id("com.darkrockstudios.hammer.plugin") version "0.6.0"
 }
 ```
 
@@ -62,7 +64,7 @@ Kotlin version it was tested with, since Hammer is tested against one Kotlin/Was
 ## Rust: crates.io
 
 - **The crate** is published as `hammer-plugin-kit`, matching the Kotlin artifact (`hammer` is taken).
-  Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.5"` and writes
+  Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.6"` and writes
   `use hammer::…`. The `getrandom` feature stays optional. docs.rs builds its documentation.
 - **The build.** A Rust plugin needs the `wasm32-unknown-unknown` target, sometimes `finish.py` and
   Wizer, and then packing. At first these ship in the GitHub release (below). Later, a
@@ -72,7 +74,7 @@ Kotlin version it was tested with, since Hammer is tested against one Kotlin/Was
 ## C: GitHub releases
 
 C has no package registry worth targeting, so the C kit is a release asset:
-`hammer-plugin-sdk-c-0.5.0.tar.gz` with `include/`, `build.sh`, `test.sh`, `package.sh`, both licenses,
+`hammer-plugin-sdk-c-0.6.0.tar.gz` with `include/`, `build.sh`, `test.sh`, `package.sh`, both licenses,
 and a SHA-256 checksum next to it. An author unpacks it anywhere and passes its directory to the
 scripts, or vendors `include/` into their repository. The headers gain a
 `HAMMER_KIT_VERSION` beside `HAMMER_API_VERSION`.

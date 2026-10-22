@@ -34,7 +34,7 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 
    ```kotlin
    plugins {
-   	id("com.darkrockstudios.hammer.plugin") version "0.5.0"
+   	id("com.darkrockstudios.hammer.plugin") version "0.6.0"
    }
    ```
 
