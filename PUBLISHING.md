@@ -89,8 +89,10 @@ notes listing the host API version, the Kotlin version, and what changed in each
 - **Documentation moves out of hammer-editor.** The plugin author's parts of `docs/CLIENT-PLUGINS.md`
   (manifest, exports, operations, settings, resources) move here, where they are versioned with the
   kits; hammer-editor keeps the host's design.
-- **Templates.** A starter repository per language (`hammer-plugin-template-kotlin`, `-rust`, `-c`)
-  with the build, a test, and a CI workflow, for GitHub's "Use this template".
+- **Templates.** A starter repository per language, with the build, a test, and a CI workflow, for
+  GitHub's "Use this template". Kotlin's is
+  [hammer-plugin-kotlin](https://github.com/Darkrock-Studios/hammer-plugin-kotlin); `hammer-plugin-rust` and
+  `hammer-plugin-c` follow once those kits are published.
 
 ## Order
 
@@ -101,4 +103,4 @@ left, in order:
    if `hammer-plugin` is at risk, an early 0.x release claims it.
 2. The C tarball, added to the release workflow's GitHub release.
 3. Switch hammer-plugins and hammer-plugin-development to the published kits.
-4. `cargo-hammer`, the documentation move, and the templates.
+4. `cargo-hammer`, the documentation move, and the Rust and C templates.
