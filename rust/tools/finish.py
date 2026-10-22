@@ -27,7 +27,12 @@ def tool(name):
 
 
 def run(*args):
-    return subprocess.run([tool(args[0]), *args[1:]], check=True, capture_output=True, text=True).stdout
+    command = [tool(args[0]), *args[1:]]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        output = (result.stderr or result.stdout).strip()
+        sys.exit(f"{' '.join(command)} failed with exit status {result.returncode}" + (f":\n{output}" if output else ""))
+    return result.stdout
 
 
 def section(wasm, name):
