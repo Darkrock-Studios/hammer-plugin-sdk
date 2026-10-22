@@ -23,6 +23,7 @@ use std::sync::Once;
 pub mod action;
 pub mod base64;
 pub mod diagnose;
+pub mod http;
 pub mod ops;
 #[cfg(test)]
 mod ops_tests;
