@@ -7,17 +7,37 @@ hammer-editor's `docs/CLIENT-PLUGINS.md` has the full rules for each.
 ## A new plugin
 
 A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and optionally
-`settings.toml`, translations in `locales/`, and files to read at run time in `resources/`. In `kotlin/`:
+`settings.toml`, translations in `locales/`, and files to read at run time in `resources/`.
 
-1. Make a directory, say `kotlin/greeter`, with `build.gradle.kts`:
+1. Make a Gradle project, say `greeter`, with `settings.gradle.kts`:
+
+   ```kotlin
+   pluginManagement {
+   	repositories {
+   		gradlePluginPortal()
+   		mavenCentral()
+   	}
+   }
+
+   dependencyResolutionManagement {
+   	repositories {
+   		mavenCentral()
+   	}
+   }
+
+   rootProject.name = "greeter"
+   ```
+
+2. Apply the Gradle plugin in `build.gradle.kts`. It sets up Kotlin Multiplatform, adds the kit
+   (`com.darkrockstudios.hammer:hammer-plugin-kit`, at the plugin's own version), and adds the
+   `hammerPlugin` task.
 
    ```kotlin
    plugins {
-   	id("hammer.plugin")
+   	id("com.darkrockstudios.hammer.plugin") version "0.5.0"
    }
    ```
 
-2. Add `"greeter"` to the `include(...)` in `kotlin/settings.gradle.kts`.
 3. Write `manifest.toml`. Every plugin starts the same way; the recipes below add to it.
 
    ```toml
@@ -34,8 +54,12 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 
 4. Put the plugin's logic in `src/commonMain/kotlin`, where JVM tests can reach it, and its exports in
    `src/wasmWasiMain/kotlin/Exports.kt`.
-5. Build with `gradle :greeter:hammerPlugin`, which writes `greeter/build/greeter.hammerplugin`, and
-   install it in Hammer from Settings, Plugins.
+5. Build with `gradle hammerPlugin`, which writes `build/greeter.hammerplugin`, and install it in
+   Hammer from Settings, Plugins.
+
+To try a recipe inside this repository instead, add a directory under `kotlin/` next to `hello`, apply
+`id("com.darkrockstudios.hammer.plugin")` without a version, and add it to the `include(...)` in
+`kotlin/settings.gradle.kts`; the kit then comes from this checkout.
 
 A module has one export of each kind (`export`, `action`, `diagnose`, `command`), so a plugin with two
 actions tells them apart by name in its one `action` export. `kotlin/hello`'s
@@ -119,7 +143,8 @@ Returning null ends the action without a word.
 ## An action with a document, calling Hammer
 
 `ActionReply.document` shows markdown in the action's dialog, where the user can copy it or save it as
-a note. The action reads the project through Hammer's operations, which the manifest must ask for.
+a note. The action reads the project through Hammer's operations, here `Hammer.scene.tree`, which the
+manifest must ask for; see [Calling Hammer](#calling-hammer).
 
 ```toml
 [[actions]]
@@ -128,22 +153,16 @@ label = "Hello outline"
 ```
 
 ```kotlin
-@Serializable
-class SceneTree(val nodes: List<Node>) {
-	@Serializable
-	class Node(val id: Int, val name: String, val kind: String, val children: List<Node> = emptyList())
-}
-
 fun outline(request: ActionRequest): ActionReply = ActionReply.document(
 	buildString {
 		appendLine("# ${request.project}")
-		fun write(nodes: List<SceneTree.Node>, depth: Int) {
+		fun write(nodes: List<SceneNode>, depth: Int) {
 			nodes.forEach { node ->
 				appendLine("  ".repeat(depth) + "- ${node.name}")
 				write(node.children, depth + 1)
 			}
 		}
-		write(call<SceneTree>("scene.tree", buildJsonObject { put("project", request.project) }).nodes, 0)
+		write(Hammer.scene.tree(request.project).nodes, 0)
 	},
 )
 ```
@@ -191,20 +210,17 @@ hint = "Leave empty for the whole story, or the scene you are in."
 @Serializable
 class CountInput(val scenes: List<Int> = emptyList())
 
-// tree() and flatten() are small helpers in Hello.kt, reading scene.tree as outline does.
+// flatten() is a small helper in Hello.kt that lists a node and everything under it.
 fun countWords(request: ActionRequest): ActionReply {
 	val here = request.context.id.takeIf { request.context.place == "scene" }
 	val chosen = request.input<CountInput>().scenes.ifEmpty { listOfNotNull(here) }
-	val scenes = tree(request.project).nodes.flatMap { it.flatten() }
-		.filter { it.kind == "scene" && (chosen.isEmpty() || it.id in chosen) }
+	val scenes = Hammer.scene.tree(request.project).nodes.flatMap { it.flatten() }
+		.filter { it.kind == SceneKind.Scene && (chosen.isEmpty() || it.id in chosen) }
 	val counts = buildString {
 		appendLine("# Word counts")
 		scenes.forEachIndexed { i, scene ->
 			progress(i.toDouble() / scenes.size, "Counting ${scene.name}")
-			val text = call<SceneText>("scene.read", buildJsonObject {
-				put("project", request.project)
-				put("id", scene.id)
-			})
+			val text = Hammer.scene.read(request.project, scene.id)
 			appendLine("- ${scene.name}: ${text.markdown.split(' ', '\n', '\t').count { it.isNotBlank() }}")
 		}
 	}
@@ -245,15 +261,9 @@ required = true
 @Serializable
 class AboutInput(val who: EntityRef)
 
-@Serializable
-private class Entry(val name: String, val aliases: List<String> = emptyList(), val referencedBy: List<Int> = emptyList())
-
 fun about(request: ActionRequest): ActionReply {
 	val who = request.input<AboutInput>().who
-	val entry = call<Entry>("entry.read", buildJsonObject {
-		put("project", request.project)
-		put("id", who.id)
-	})
+	val entry = Hammer.entry.read(request.project, who.id)
 	val scenes = entry.referencedBy.size
 	return ActionReply.document(
 		buildString {
@@ -353,15 +363,7 @@ for copying and saving as a note, buttons or not. C writes the same replies with
 entry can open it, with a message saying so:
 
 ```kotlin
-@Serializable
-class Created(val id: Int)
-
-val entry = call<Created>("entry.create", buildJsonObject {
-	put("project", request.project)
-	put("type", "person")
-	put("name", name)
-	put("text", text)
-})
+val entry = Hammer.entry.create(request.project, name, EntryKind.Person, text)
 ActionReply(message = "Added $name", open = ActionReply.Open("entry", entry.id))
 ```
 
@@ -484,8 +486,16 @@ Button("back", request.say("Back", "Retour"), validate = false)
 
 ## Calling Hammer
 
-`call<T>(operation, input)` runs one of Hammer's operations and reads its output; `callJson` gives the
-JSON as it is. A failure throws `OperationException`, and one the plugin lets escape is shown to the
+`Hammer`, in `hammer.ops`, has a function for each of Hammer's operations, grouped as they are named:
+`Hammer.scene.read(project, id)` runs `scene.read` and returns a `SceneText`, and
+`Hammer.entry.list(project, type = EntryKind.Person)` passes an optional input by name. Each function's
+documentation says what the manifest must ask for. They are generated from Hammer's own list of
+operations, so their types are Hammer's: an output's fields all have defaults, which a test's fake can
+leave out, as in `Json.encodeToJsonElement(SceneText(markdown = "Rain fell."))`.
+
+`call<T>(operation, input)` runs an operation by name and reads its output into your own type, and
+`callJson` gives the JSON as it is, for a plugin that picks operations at run time as the MCP server
+does. A failure throws `OperationException`, and one the plugin lets escape is shown to the
 user as its message; an action can catch it and reply with `errors` instead, keeping the user on the
 page: `ActionReply(errors = mapOf("" to e.message.orEmpty()))`. The manifest's
 `permissions.operations` lists what a plugin may call: operation names, or a scope such as

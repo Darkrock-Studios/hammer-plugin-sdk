@@ -11,15 +11,16 @@ import hammer.Diagnostic
 import hammer.EntityRef
 import hammer.ExportRequest
 import hammer.Fix
-import hammer.call
 import hammer.input
+import hammer.ops.Hammer
+import hammer.ops.SceneKind
+import hammer.ops.SceneNode
 import hammer.progress
 import hammer.resourceText
 import hammer.settings
 import hammer.state
 import hammer.stateOf
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 @Serializable
@@ -37,51 +38,37 @@ fun helloExport(request: ExportRequest): String {
 // An action that replies with a message: a line the user sees briefly.
 fun greet(request: ActionRequest): ActionReply = ActionReply.message("${request.settings<HelloSettings>().greeting}, ${request.project}!")
 
-@Serializable
-class SceneTree(val nodes: List<Node>) {
-	@Serializable
-	class Node(val id: Int, val name: String, val kind: String, val children: List<Node> = emptyList())
-}
-
-private fun tree(project: String) = call<SceneTree>("scene.tree", buildJsonObject { put("project", project) })
-
-private fun SceneTree.Node.flatten(): List<SceneTree.Node> = listOf(this) + children.flatMap { it.flatten() }
+private fun SceneNode.flatten(): List<SceneNode> = listOf(this) + children.flatMap { it.flatten() }
 
 // An action that replies with a document: markdown the user can copy or save as a note. It calls
 // Hammer's operations.
 fun outline(request: ActionRequest): ActionReply = ActionReply.document(
 	buildString {
 		appendLine("# ${request.project}")
-		fun write(nodes: List<SceneTree.Node>, depth: Int) {
+		fun write(nodes: List<SceneNode>, depth: Int) {
 			nodes.forEach { node ->
 				appendLine("  ".repeat(depth) + "- ${node.name}")
 				write(node.children, depth + 1)
 			}
 		}
-		write(tree(request.project).nodes, 0)
+		write(Hammer.scene.tree(request.project).nodes, 0)
 	},
 )
 
 @Serializable
 class CountInput(val scenes: List<Int> = emptyList())
 
-@Serializable
-private class SceneText(val markdown: String)
-
 // An action with a field, run from Project Home or a scene, that reports its progress.
 fun countWords(request: ActionRequest): ActionReply {
 	val here = request.context.id.takeIf { request.context.place == "scene" }
 	val chosen = request.input<CountInput>().scenes.ifEmpty { listOfNotNull(here) }
-	val scenes = tree(request.project).nodes.flatMap { it.flatten() }
-		.filter { it.kind == "scene" && (chosen.isEmpty() || it.id in chosen) }
+	val scenes = Hammer.scene.tree(request.project).nodes.flatMap { it.flatten() }
+		.filter { it.kind == SceneKind.Scene && (chosen.isEmpty() || it.id in chosen) }
 	val counts = buildString {
 		appendLine("# Word counts")
 		scenes.forEachIndexed { i, scene ->
 			progress(i.toDouble() / scenes.size, "Counting ${scene.name}")
-			val text = call<SceneText>("scene.read", buildJsonObject {
-				put("project", request.project)
-				put("id", scene.id)
-			})
+			val text = Hammer.scene.read(request.project, scene.id)
 			appendLine("- ${scene.name}: ${text.markdown.split(' ', '\n', '\t').count { it.isNotBlank() }}")
 		}
 	}
@@ -91,16 +78,10 @@ fun countWords(request: ActionRequest): ActionReply {
 @Serializable
 class AboutInput(val who: EntityRef)
 
-@Serializable
-private class Entry(val name: String, val aliases: List<String> = emptyList(), val referencedBy: List<Int> = emptyList())
-
 // An action with an entity field: a character the user picks by name, read with entry.read.
 fun about(request: ActionRequest): ActionReply {
 	val who = request.input<AboutInput>().who
-	val entry = call<Entry>("entry.read", buildJsonObject {
-		put("project", request.project)
-		put("id", who.id)
-	})
+	val entry = Hammer.entry.read(request.project, who.id)
 	val scenes = entry.referencedBy.size
 	return ActionReply.document(
 		buildString {

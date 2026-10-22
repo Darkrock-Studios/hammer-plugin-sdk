@@ -8,10 +8,12 @@ Hammer-specific import and exports described in hammer-editor's `docs/CLIENT-PLU
 | --- | --- |
 | `c/include` | The C kit: `hammer.h`, on top of Extism's `extism-pdk.h` (BSD-3, see `EXTISM-PDK-LICENSE`); `hammer_json.h`, a JSON reader that needs no allocation; `hammer_out.h` for output, `hammer_text.h` for words, `hammer_action.h` for actions' requests and replies (messages, documents, and pages of fields and buttons), `hammer_diagnose.h` for checks underlined in the editor, `hammer_progress` for long actions, and `hammer_test.h` for native unit tests |
 | `c/build.sh`, `c/test.sh` | Build C plugin directories into packages, and run their native unit tests |
-| `rust/hammer` | The Rust kit: Hammer's imports, operations, and the cache, with serde for JSON; `action` and `diagnose` types, an action's pages among them, `progress`, `http` requests to the hosts the manifest names, byte offsets, an optional `getrandom` backend, and a zeroing allocator for Wizer builds |
+| `rust/hammer` | The Rust kit: Hammer's imports, operations (typed, in `ops`), and the cache, with serde for JSON; `action` and `diagnose` types, an action's pages among them, `progress`, `http` requests to the hosts the manifest names, byte offsets, an optional `getrandom` backend, and a zeroing allocator for Wizer builds |
 | `rust/tools/finish.py` | Makes a module built from crates written for the browser loadable by Hammer: drops wasm-bindgen's leftovers and checks the imports |
-| `kotlin/hammer` | The Kotlin kit: typed requests and replies, an action's pages among them, operations, the cache, and for JVM tests a fake Hammer and `ActionDriver`, which runs an action through its pages as Hammer does |
-| `kotlin/gradle-plugin` | The `hammer.plugin` Gradle plugin: sets up a plugin project and builds its `.hammerplugin` |
+| `kotlin/hammer` | The Kotlin kit: typed requests and replies, an action's pages among them, typed operations (`hammer.ops`), the cache, and for JVM tests a fake Hammer and `ActionDriver`, which runs an action through its pages as Hammer does |
+| `api/operations.json` | Hammer's operations as `ops.list` describes them, from which both kits' typed operations are generated: Kotlin's `hammer.ops` and Rust's `hammer::ops` |
+| `kotlin/codegen` | The generator, with KotlinPoet for Kotlin. `gradle :codegen:updateOperations` refreshes the snapshot from hammer-editor (`tools/dump-operations.sh`) and regenerates; `:codegen:checkOperations` fails when the generated code is out of date |
+| `kotlin/gradle-plugin` | The `com.darkrockstudios.hammer.plugin` Gradle plugin: sets up a plugin project and builds its `.hammerplugin` |
 | `kotlin/hello` | One small example of each kind of plugin, which [RECIPES.md](RECIPES.md) walks through: an export, actions replying with a message, with a document (one with fields and progress, one picking a character), and with two pages carrying state, a text check, and a command |
 | `tools/package.sh` | Packs a plugin directory and its built module into a `.hammerplugin` |
 
@@ -20,17 +22,23 @@ Hammer's own plugins, in hammer-plugins, are fuller examples in each language.
 
 ## Using the kits
 
-The kits are not published yet: a plugin repository builds against a checkout of this one beside it.
-[PUBLISHING.md](PUBLISHING.md) has the plan for publishing each.
+The Kotlin kit and its Gradle plugin are on Maven Central, and the Rust kit on crates.io. The C kit is not
+published yet: a plugin repository builds against a checkout of this one beside it. [PUBLISHING.md](PUBLISHING.md) has
+how releases work, and the plan for the rest.
 
 - C: `#include "hammer.h"`, and build with `c/build.sh <plugin directory>`, which puts `c/include` on
   the include path and packs the directory's `manifest.toml`, `settings.toml`, `locales/`, and
   `resources/` with the module. `c/test.sh <plugin directory>` builds and runs its `test.c`.
-- Rust: depend on the kit by path, `hammer = { path = "../hammer-plugin-sdk/rust/hammer" }`, build for
-  `wasm32-unknown-unknown`, and pack the module with `tools/package.sh`.
-- Kotlin: in `settings.gradle.kts`, `includeBuild("../hammer-plugin-sdk/kotlin/gradle-plugin")` under
-  `pluginManagement`, and `includeBuild("../hammer-plugin-sdk/kotlin")` so the kit comes from here; a
-  plugin project then applies `id("hammer.plugin")`, and `gradle :<plugin>:hammerPlugin` builds it.
+- Rust: depend on `hammer-plugin-kit = "<version>"` and write `use hammer::…`; build for
+  `wasm32-unknown-unknown`, and pack the module with `tools/package.sh`. The
+  [Rust template](https://github.com/Darkrock-Studios/hammer-plugin-rust) is a working plugin to start
+  from.
+- Kotlin: apply `id("com.darkrockstudios.hammer.plugin") version "<version>"`, with `mavenCentral()` among
+  the repositories in `pluginManagement` and `dependencyResolutionManagement`; it adds
+  `com.darkrockstudios.hammer:hammer-plugin-kit` at the same version, and `gradle hammerPlugin` builds the
+  package. [RECIPES.md](RECIPES.md) starts with a new plugin. To build against a checkout of this repo
+  instead, `includeBuild("../hammer-plugin-sdk/kotlin/gradle-plugin")` under `pluginManagement` and
+  `includeBuild("../hammer-plugin-sdk/kotlin")`, and apply the plugin without a version.
 
 ## Building
 

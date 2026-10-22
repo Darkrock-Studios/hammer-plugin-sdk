@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.targets.js.dsl.KotlinJsTargetDsl
 
 /**
- * Builds a Hammer plugin in Kotlin/Wasm. Applying `hammer.plugin` sets up Kotlin Multiplatform with a
+ * Builds a Hammer plugin in Kotlin/Wasm. Applying `com.darkrockstudios.hammer.plugin` sets up Kotlin Multiplatform with a
  * `wasmWasi` target for the plugin and a `jvm` target for testing its common code, adds the kit, and
  * adds `hammerPlugin`, which builds `build/<name>.hammerplugin` from `manifest.toml`, `settings.toml`,
  * `locales/`, and `resources/` if there are any, and the optimized module. The plugin's own code is common code plus its
@@ -45,7 +45,7 @@ class HammerPluginPlugin : Plugin<Project> {
 
 		// A build holding the kit itself names its project in `hammer.kit.project`; others get it from Maven.
 		val kit: Any = (project.findProperty("hammer.kit.project") as String?)?.let(project::project)
-			?: "com.darkrockstudios.hammer:plugin-kit:$KIT_VERSION"
+			?: "com.darkrockstudios.hammer:hammer-plugin-kit:$KIT_VERSION"
 		project.dependencies.add("commonMainImplementation", kit)
 		project.dependencies.add("jvmTestImplementation", "org.jetbrains.kotlin:kotlin-test")
 
