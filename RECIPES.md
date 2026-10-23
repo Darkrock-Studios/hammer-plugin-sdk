@@ -2,7 +2,7 @@
 
 Hello-world versions of each kind of Hammer plugin, in Kotlin. Every recipe is part of one working
 plugin, the SDK's [`kotlin/hello`](kotlin/hello), so they build and are tested; copy the parts you need.
-The [API reference](https://plugins.hammer.ink/reference) has the full rules for each.
+The [API reference](https://developers.hammer.ink/reference) has the full rules for each.
 
 ## A new plugin
 
