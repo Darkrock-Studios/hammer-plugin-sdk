@@ -409,11 +409,6 @@ public data class PluginList(
 )
 
 @Serializable
-public data class PluginRemoved(
-	public val id: String = "",
-)
-
-@Serializable
 public data class PluginSummary(
 	public val id: String = "",
 	/**

@@ -486,30 +486,11 @@ public object OpsOperations {
 
 public object PluginOperations {
 	/**
-	 * Install, or replace, a runtime plugin from a .hammerplugin file, granting it every permission its manifest asks for, which the reply lists. Takes effect at once in a running app; otherwise, the next time it starts.
-	 *
-	 * Needs `plugin.install` (by name) in the manifest's `[permissions]`.
-	 * @param path An absolute path to a `.hammerplugin` package.
-	 */
-	public fun install(path: String): PluginSummary = operation("plugin.install", buildJsonObject {
-		put("path", operationValue(path))
-	})
-
-	/**
 	 * The installed runtime plugins, and what each may use.
 	 *
 	 * Needs `plugin.list` or `plugins:read` in the manifest's `[permissions]`.
 	 */
 	public fun list(): PluginList = operation("plugin.list", buildJsonObject {
-	})
-
-	/**
-	 * Uninstall a runtime plugin, forgetting its cache and secrets. Its other settings are kept for a reinstall.
-	 *
-	 * Needs `plugin.uninstall` (by name) in the manifest's `[permissions]`.
-	 */
-	public fun uninstall(id: String): PluginRemoved = operation("plugin.uninstall", buildJsonObject {
-		put("id", operationValue(id))
 	})
 }
 

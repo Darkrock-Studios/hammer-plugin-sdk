@@ -391,12 +391,6 @@ pub struct PluginList {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct PluginRemoved {
-    pub id: String,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
 pub struct PluginSummary {
     pub id: String,
     /// Null, as are [version] and [description], when its package can no longer be read.
@@ -1312,17 +1306,6 @@ pub mod ops {
 pub mod plugin {
     use super::*;
 
-    /// Install, or replace, a runtime plugin from a .hammerplugin file, granting it every permission its manifest asks for, which the reply lists. Takes effect at once in a running app; otherwise, the next time it starts.
-    ///
-    /// Needs `plugin.install` (by name) in the manifest's `[permissions]`.
-    pub fn install(path: &str) -> crate::Result<PluginSummary> {
-        #[derive(Serialize)]
-        struct Input<'a> {
-            path: &'a str,
-        }
-        crate::call("plugin.install", &Input { path })
-    }
-
     /// The installed runtime plugins, and what each may use.
     ///
     /// Needs `plugin.list` or `plugins:read` in the manifest's `[permissions]`.
@@ -1331,17 +1314,6 @@ pub mod plugin {
         struct Input {
         }
         crate::call("plugin.list", &Input {  })
-    }
-
-    /// Uninstall a runtime plugin, forgetting its cache and secrets. Its other settings are kept for a reinstall.
-    ///
-    /// Needs `plugin.uninstall` (by name) in the manifest's `[permissions]`.
-    pub fn uninstall(id: &str) -> crate::Result<PluginRemoved> {
-        #[derive(Serialize)]
-        struct Input<'a> {
-            id: &'a str,
-        }
-        crate::call("plugin.uninstall", &Input { id })
     }
 
 }

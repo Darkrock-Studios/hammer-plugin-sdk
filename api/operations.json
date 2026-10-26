@@ -2119,99 +2119,6 @@
             }
         },
         {
-            "name": "plugin.install",
-            "description": "Install, or replace, a runtime plugin from a .hammerplugin file, granting it every permission its manifest asks for, which the reply lists. Takes effect at once in a running app; otherwise, the next time it starts.",
-            "access": "destructive",
-            "scope": "plugins",
-            "input": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "An absolute path to a `.hammerplugin` package."
-                    }
-                },
-                "required": [
-                    "path"
-                ],
-                "additionalProperties": false,
-                "x-name": "PluginInstallInput"
-            },
-            "output": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Null, as are [version] and [description], when its package can no longer be read."
-                    },
-                    "version": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "description": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "enabled": {
-                        "type": "boolean"
-                    },
-                    "operations": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "The operations it may use."
-                    },
-                    "http": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Hosts it may send what the user writes to."
-                    },
-                    "userHostSetting": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "The setting holding an address it may also send what the user writes to."
-                    }
-                },
-                "required": [
-                    "id",
-                    "enabled"
-                ],
-                "additionalProperties": false,
-                "x-name": "PluginSummary"
-            }
-        },
-        {
             "name": "plugin.list",
             "description": "The installed runtime plugins, and what each may use.",
             "access": "read",
@@ -2307,38 +2214,6 @@
                 ],
                 "additionalProperties": false,
                 "x-name": "PluginList"
-            }
-        },
-        {
-            "name": "plugin.uninstall",
-            "description": "Uninstall a runtime plugin, forgetting its cache and secrets. Its other settings are kept for a reinstall.",
-            "access": "destructive",
-            "scope": "plugins",
-            "input": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "id"
-                ],
-                "additionalProperties": false,
-                "x-name": "PluginIdInput"
-            },
-            "output": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "id"
-                ],
-                "additionalProperties": false,
-                "x-name": "PluginRemoved"
             }
         },
         {
