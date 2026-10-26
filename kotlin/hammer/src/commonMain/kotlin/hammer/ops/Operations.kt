@@ -61,6 +61,11 @@ public object Hammer {
 	public val ops: OpsOperations = OpsOperations
 
 	/**
+	 * The `plugin` operations.
+	 */
+	public val plugin: PluginOperations = PluginOperations
+
+	/**
 	 * The `project` operations.
 	 */
 	public val project: ProjectOperations = ProjectOperations
@@ -108,30 +113,6 @@ public object Hammer {
 
 public object AccountOperations {
 	/**
-	 * Log in to a sync server with an existing account. Accounts are created in the app.
-	 *
-	 * Needs `account.login` or `account:write` in the manifest's `[permissions]`.
-	 * @param url The server's address, with `https://` or `http://` optional.
-	 */
-	public fun login(
-		url: String,
-		email: String,
-		password: String,
-	): AccountStatus = operation("account.login", buildJsonObject {
-		put("url", operationValue(url))
-		put("email", operationValue(email))
-		put("password", operationValue(password))
-	})
-
-	/**
-	 * Forget the sync server and every project's sync state for it, as removing the server in Settings does.
-	 *
-	 * Needs `account.logout` or `account:write` in the manifest's `[permissions]`.
-	 */
-	public fun logout(): AccountStatus = operation("account.logout", buildJsonObject {
-	})
-
-	/**
 	 * The sync server and account this install uses, and optionally whether the server still accepts it.
 	 *
 	 * Needs `account.status` or `account:read` in the manifest's `[permissions]`.
@@ -168,7 +149,7 @@ public object DraftOperations {
 	/**
 	 * Replace a scene's text with one of its drafts, saving the replaced text as a draft first.
 	 *
-	 * Needs `draft.apply` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `draft.apply` or `content:prose` in the manifest's `[permissions]`.
 	 */
 	public fun apply(project: String, id: Int): DraftApplied = operation("draft.apply", buildJsonObject {
 		put("project", operationValue(project))
@@ -503,6 +484,35 @@ public object OpsOperations {
 	})
 }
 
+public object PluginOperations {
+	/**
+	 * Install, or replace, a runtime plugin from a .hammerplugin file, granting it every permission its manifest asks for, which the reply lists. Takes effect at once in a running app; otherwise, the next time it starts.
+	 *
+	 * Needs `plugin.install` (by name) in the manifest's `[permissions]`.
+	 * @param path An absolute path to a `.hammerplugin` package.
+	 */
+	public fun install(path: String): PluginSummary = operation("plugin.install", buildJsonObject {
+		put("path", operationValue(path))
+	})
+
+	/**
+	 * The installed runtime plugins, and what each may use.
+	 *
+	 * Needs `plugin.list` or `plugins:read` in the manifest's `[permissions]`.
+	 */
+	public fun list(): PluginList = operation("plugin.list", buildJsonObject {
+	})
+
+	/**
+	 * Uninstall a runtime plugin, forgetting its cache and secrets. Its other settings are kept for a reinstall.
+	 *
+	 * Needs `plugin.uninstall` (by name) in the manifest's `[permissions]`.
+	 */
+	public fun uninstall(id: String): PluginRemoved = operation("plugin.uninstall", buildJsonObject {
+		put("id", operationValue(id))
+	})
+}
+
 public object ProjectOperations {
 	/**
 	 * Create an empty project.
@@ -545,7 +555,7 @@ public object ProjectOperations {
 	/**
 	 * Create a project from a Markdown or RTF manuscript, split into scenes by its headings or a chapter pattern.
 	 *
-	 * Needs `project.import` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `project.import` or `content:prose` in the manifest's `[permissions]`.
 	 * @param name Left out, the title the file gives itself.
 	 * @param chapterPattern A regular expression for the lines that start a chapter; left out, chapter, part, prologue, and epilogue.
 	 * @param chapterGroups Put each chapter's scenes in a group.
@@ -616,7 +626,7 @@ public object SceneOperations {
 	/**
 	 * Add markdown to the end of a scene's text, as a new paragraph.
 	 *
-	 * Needs `scene.append` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `scene.append` or `content:prose` in the manifest's `[permissions]`.
 	 */
 	public fun append(
 		project: String,
@@ -745,7 +755,7 @@ public object SceneOperations {
 	/**
 	 * Replace a scene's text with markdown. Mode draft saves it as a new draft of the scene and leaves the scene alone. Mode live replaces the scene's text, saving the old text as a draft first.
 	 *
-	 * Needs `scene.write` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `scene.write` or `content:prose` in the manifest's `[permissions]`.
 	 * @param draftName The new draft's name, in draft mode only.
 	 */
 	public fun write(
@@ -886,17 +896,6 @@ public object StatsOperations {
 }
 
 public object SyncOperations {
-	/**
-	 * Sync the account and every linked project with the server, as Sync all does. A project with a conflict is left for the app.
-	 *
-	 * Needs `sync.run` or `account:write` in the manifest's `[permissions]`.
-	 * @param project Sync only this project; account changes and ideas still sync.
-	 */
-	public fun run(project: String? = null, onConflict: ConflictChoice? = null): SyncRunResult = operation("sync.run", buildJsonObject {
-		if (project != null) put("project", operationValue(project))
-		if (onConflict != null) put("onConflict", operationValue(onConflict))
-	})
-
 	/**
 	 * Each project's link to the sync server, its last sync, and how many of its changes are waiting to sync.
 	 *

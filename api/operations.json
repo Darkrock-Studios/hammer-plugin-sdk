@@ -1,163 +1,6 @@
 {
     "operations": [
         {
-            "name": "account.login",
-            "description": "Log in to a sync server with an existing account. Accounts are created in the app.",
-            "access": "write",
-            "scope": "account",
-            "input": {
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "The server's address, with `https://` or `http://` optional."
-                    },
-                    "email": {
-                        "type": "string"
-                    },
-                    "password": {
-                        "type": "string",
-                        "x-hammer-stdin": "secret"
-                    }
-                },
-                "required": [
-                    "url",
-                    "email",
-                    "password"
-                ],
-                "additionalProperties": false,
-                "x-name": "LoginInput"
-            },
-            "output": {
-                "type": "object",
-                "properties": {
-                    "server": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "ssl": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "email": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "loggedIn": {
-                        "type": "boolean"
-                    },
-                    "tokenValid": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Null unless checked."
-                    }
-                },
-                "required": [
-                    "server",
-                    "ssl",
-                    "email",
-                    "loggedIn",
-                    "tokenValid"
-                ],
-                "additionalProperties": false,
-                "x-name": "AccountStatus"
-            }
-        },
-        {
-            "name": "account.logout",
-            "description": "Forget the sync server and every project's sync state for it, as removing the server in Settings does.",
-            "access": "write",
-            "scope": "account",
-            "input": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": false,
-                "x-name": "NoInput"
-            },
-            "output": {
-                "type": "object",
-                "properties": {
-                    "server": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "ssl": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "email": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "loggedIn": {
-                        "type": "boolean"
-                    },
-                    "tokenValid": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Null unless checked."
-                    }
-                },
-                "required": [
-                    "server",
-                    "ssl",
-                    "email",
-                    "loggedIn",
-                    "tokenValid"
-                ],
-                "additionalProperties": false,
-                "x-name": "AccountStatus"
-            }
-        },
-        {
             "name": "account.status",
             "description": "The sync server and account this install uses, and optionally whether the server still accepts it.",
             "access": "read",
@@ -316,7 +159,7 @@
         {
             "name": "draft.apply",
             "description": "Replace a scene's text with one of its drafts, saving the replaced text as a draft first.",
-            "access": "write",
+            "access": "prose",
             "scope": "content",
             "input": {
                 "type": "object",
@@ -2232,6 +2075,7 @@
                                     "enum": [
                                         "read",
                                         "write",
+                                        "prose",
                                         "destructive"
                                     ],
                                     "x-name": "Access"
@@ -2240,7 +2084,8 @@
                                     "type": "string",
                                     "enum": [
                                         "content",
-                                        "account"
+                                        "account",
+                                        "plugins"
                                     ],
                                     "x-name": "OperationScope"
                                 },
@@ -2271,6 +2116,229 @@
                 ],
                 "additionalProperties": false,
                 "x-name": "OperationList"
+            }
+        },
+        {
+            "name": "plugin.install",
+            "description": "Install, or replace, a runtime plugin from a .hammerplugin file, granting it every permission its manifest asks for, which the reply lists. Takes effect at once in a running app; otherwise, the next time it starts.",
+            "access": "destructive",
+            "scope": "plugins",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "An absolute path to a `.hammerplugin` package."
+                    }
+                },
+                "required": [
+                    "path"
+                ],
+                "additionalProperties": false,
+                "x-name": "PluginInstallInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Null, as are [version] and [description], when its package can no longer be read."
+                    },
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "operations": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The operations it may use."
+                    },
+                    "http": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Hosts it may send what the user writes to."
+                    },
+                    "userHostSetting": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The setting holding an address it may also send what the user writes to."
+                    }
+                },
+                "required": [
+                    "id",
+                    "enabled"
+                ],
+                "additionalProperties": false,
+                "x-name": "PluginSummary"
+            }
+        },
+        {
+            "name": "plugin.list",
+            "description": "The installed runtime plugins, and what each may use.",
+            "access": "read",
+            "scope": "plugins",
+            "input": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false,
+                "x-name": "NoInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "plugins": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "Null, as are [version] and [description], when its package can no longer be read."
+                                },
+                                "version": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "description": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "enabled": {
+                                    "type": "boolean"
+                                },
+                                "operations": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "The operations it may use."
+                                },
+                                "http": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Hosts it may send what the user writes to."
+                                },
+                                "userHostSetting": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "The setting holding an address it may also send what the user writes to."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "enabled"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "PluginSummary"
+                        }
+                    }
+                },
+                "required": [
+                    "plugins"
+                ],
+                "additionalProperties": false,
+                "x-name": "PluginList"
+            }
+        },
+        {
+            "name": "plugin.uninstall",
+            "description": "Uninstall a runtime plugin, forgetting its cache and secrets. Its other settings are kept for a reinstall.",
+            "access": "destructive",
+            "scope": "plugins",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id"
+                ],
+                "additionalProperties": false,
+                "x-name": "PluginIdInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id"
+                ],
+                "additionalProperties": false,
+                "x-name": "PluginRemoved"
             }
         },
         {
@@ -2404,7 +2472,7 @@
         {
             "name": "project.import",
             "description": "Create a project from a Markdown or RTF manuscript, split into scenes by its headings or a chapter pattern.",
-            "access": "write",
+            "access": "prose",
             "scope": "content",
             "input": {
                 "type": "object",
@@ -2776,7 +2844,7 @@
         {
             "name": "scene.append",
             "description": "Add markdown to the end of a scene's text, as a new paragraph.",
-            "access": "write",
+            "access": "prose",
             "scope": "content",
             "input": {
                 "type": "object",
@@ -3914,7 +3982,7 @@
         {
             "name": "scene.write",
             "description": "Replace a scene's text with markdown. Mode draft saves it as a new draft of the scene and leaves the scene alone. Mode live replaces the scene's text, saving the old text as a draft first.",
-            "access": "write",
+            "access": "prose",
             "scope": "content",
             "input": {
                 "type": "object",
@@ -4509,92 +4577,6 @@
                 ],
                 "additionalProperties": false,
                 "x-name": "Sessions"
-            }
-        },
-        {
-            "name": "sync.run",
-            "description": "Sync the account and every linked project with the server, as Sync all does. A project with a conflict is left for the app.",
-            "access": "write",
-            "scope": "account",
-            "input": {
-                "type": "object",
-                "properties": {
-                    "project": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Sync only this project; account changes and ideas still sync."
-                    },
-                    "onConflict": {
-                        "type": "string",
-                        "enum": [
-                            "abort",
-                            "local",
-                            "server"
-                        ],
-                        "x-name": "ConflictChoice"
-                    }
-                },
-                "additionalProperties": false,
-                "x-name": "SyncRunInput"
-            },
-            "output": {
-                "type": "object",
-                "properties": {
-                    "accountSynced": {
-                        "type": "boolean"
-                    },
-                    "ideasSynced": {
-                        "type": "boolean"
-                    },
-                    "projects": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
-                                "outcome": {
-                                    "type": "string",
-                                    "enum": [
-                                        "success",
-                                        "unchanged",
-                                        "needs_resolution",
-                                        "failed",
-                                        "skipped"
-                                    ],
-                                    "x-name": "SyncOutcome"
-                                }
-                            },
-                            "required": [
-                                "name",
-                                "outcome"
-                            ],
-                            "additionalProperties": false,
-                            "x-name": "ProjectSyncResult"
-                        }
-                    },
-                    "log": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "required": [
-                    "accountSynced",
-                    "ideasSynced",
-                    "projects",
-                    "log"
-                ],
-                "additionalProperties": false,
-                "x-name": "SyncRunResult"
             }
         },
         {

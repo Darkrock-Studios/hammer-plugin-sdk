@@ -1,5 +1,6 @@
 package operations
 
+import com.darkrockstudios.apps.hammer.operations.PLUGIN_WITHHELD_OPERATIONS
 import com.darkrockstudios.apps.hammer.operations.core.OperationList
 import com.darkrockstudios.apps.hammer.operations.core.coreOperations
 import com.darkrockstudios.apps.hammer.operations.core.descriptor
@@ -28,7 +29,7 @@ class DumpOperationsTest {
 	@Test
 	fun dump() {
 		File("src/commonMain/kotlin").walkTopDown().filter { it.extension == "kt" }.forEach { readDocs(it.readText()) }
-		val ops = coreOperations().sortedBy { it.name }.map { op ->
+		val ops = coreOperations().filter { it.name !in PLUGIN_WITHHELD_OPERATIONS }.sortedBy { it.name }.map { op ->
 			val d = op.descriptor()
 			d.copy(input = annotate(op.input.descriptor, d.input), output = annotate(op.output.descriptor, d.output))
 		}

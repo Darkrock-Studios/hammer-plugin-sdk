@@ -27,6 +27,7 @@ public enum class Access(
 ) {
 	Read("read"),
 	Write("write"),
+	Prose("prose"),
 	Destructive("destructive"),
 	Unknown(""),
 	;
@@ -111,25 +112,6 @@ public data class ChapterWords(
 	public val name: String = "",
 	public val words: Int = 0,
 )
-
-/**
- * A value this kit doesn't know, from a later Hammer, reads as [Unknown].
- */
-@Serializable(with = ConflictChoice.Serializer::class)
-public enum class ConflictChoice(
-	/**
-	 * What Hammer calls it; empty for [Unknown].
-	 */
-	public val `value`: String,
-) {
-	Abort("abort"),
-	Local("local"),
-	Server("server"),
-	Unknown(""),
-	;
-
-	internal object Serializer : OperationEnumSerializer<ConflictChoice>("hammer.ops.ConflictChoice", ConflictChoice.entries, ConflictChoice.Unknown, { it.value })
-}
 
 @Serializable
 public data class DayWords(
@@ -401,6 +383,7 @@ public enum class OperationScope(
 ) {
 	Content("content"),
 	Account("account"),
+	Plugins("plugins"),
 	Unknown(""),
 	;
 
@@ -418,6 +401,40 @@ public data class PagedScene(
 	public val markdown: String = "",
 	public val wordCount: Int = 0,
 	public val meta: SceneMeta = SceneMeta(),
+)
+
+@Serializable
+public data class PluginList(
+	public val plugins: List<PluginSummary> = emptyList(),
+)
+
+@Serializable
+public data class PluginRemoved(
+	public val id: String = "",
+)
+
+@Serializable
+public data class PluginSummary(
+	public val id: String = "",
+	/**
+	 * Null, as are [version] and [description], when its package can no longer be read.
+	 */
+	public val name: String? = null,
+	public val version: String? = null,
+	public val description: String? = null,
+	public val enabled: Boolean = false,
+	/**
+	 * The operations it may use.
+	 */
+	public val operations: List<String>? = null,
+	/**
+	 * Hosts it may send what the user writes to.
+	 */
+	public val http: List<String>? = null,
+	/**
+	 * The setting holding an address it may also send what the user writes to.
+	 */
+	public val userHostSetting: String? = null,
 )
 
 @Serializable
@@ -506,12 +523,6 @@ public data class ProjectSummary(
 	 * An ISO 8601 instant, such as `2026-03-01T09:30:00Z`.
 	 */
 	public val lastEdited: String? = null,
-)
-
-@Serializable
-public data class ProjectSyncResult(
-	public val name: String = "",
-	public val outcome: SyncOutcome = SyncOutcome.Success,
 )
 
 @Serializable
@@ -716,35 +727,6 @@ public data class Session(
 @Serializable
 public data class Sessions(
 	public val sessions: List<Session> = emptyList(),
-)
-
-/**
- * A value this kit doesn't know, from a later Hammer, reads as [Unknown].
- */
-@Serializable(with = SyncOutcome.Serializer::class)
-public enum class SyncOutcome(
-	/**
-	 * What Hammer calls it; empty for [Unknown].
-	 */
-	public val `value`: String,
-) {
-	Success("success"),
-	Unchanged("unchanged"),
-	NeedsResolution("needs_resolution"),
-	Failed("failed"),
-	Skipped("skipped"),
-	Unknown(""),
-	;
-
-	internal object Serializer : OperationEnumSerializer<SyncOutcome>("hammer.ops.SyncOutcome", SyncOutcome.entries, SyncOutcome.Unknown, { it.value })
-}
-
-@Serializable
-public data class SyncRunResult(
-	public val accountSynced: Boolean = false,
-	public val ideasSynced: Boolean = false,
-	public val projects: List<ProjectSyncResult> = emptyList(),
-	public val log: List<String> = emptyList(),
 )
 
 @Serializable

@@ -15,6 +15,8 @@ pub enum Access {
     Read,
     #[serde(rename = "write")]
     Write,
+    #[serde(rename = "prose")]
+    Prose,
     #[serde(rename = "destructive")]
     Destructive,
     /// A value this kit doesn't know. Hammer rejects it as an input.
@@ -99,21 +101,6 @@ pub struct ChapterWords {
     pub id: i32,
     pub name: String,
     pub words: i32,
-}
-
-/// A value this kit doesn't know, from a later Hammer, reads as [`ConflictChoice::Unknown`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ConflictChoice {
-    #[default]
-    #[serde(rename = "abort")]
-    Abort,
-    #[serde(rename = "local")]
-    Local,
-    #[serde(rename = "server")]
-    Server,
-    /// A value this kit doesn't know. Hammer rejects it as an input.
-    #[serde(other)]
-    Unknown,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -376,6 +363,8 @@ pub enum OperationScope {
     Content,
     #[serde(rename = "account")]
     Account,
+    #[serde(rename = "plugins")]
+    Plugins,
     /// A value this kit doesn't know. Hammer rejects it as an input.
     #[serde(other)]
     Unknown,
@@ -392,6 +381,42 @@ pub struct PagedScene {
     #[serde(rename = "wordCount")]
     pub word_count: i32,
     pub meta: SceneMeta,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PluginList {
+    pub plugins: Vec<PluginSummary>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PluginRemoved {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PluginSummary {
+    pub id: String,
+    /// Null, as are [version] and [description], when its package can no longer be read.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub description: Option<String>,
+    pub enabled: bool,
+    /// The operations it may use.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub operations: Option<Vec<String>>,
+    /// Hosts it may send what the user writes to.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub http: Option<Vec<String>>,
+    /// The setting holding an address it may also send what the user writes to.
+    #[serde(rename = "userHostSetting")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub user_host_setting: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -489,13 +514,6 @@ pub struct ProjectSummary {
     /// An ISO 8601 instant, such as `2026-03-01T09:30:00Z`.
     #[serde(rename = "lastEdited")]
     pub last_edited: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ProjectSyncResult {
-    pub name: String,
-    pub outcome: SyncOutcome,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -697,36 +715,6 @@ pub struct Sessions {
     pub sessions: Vec<Session>,
 }
 
-/// A value this kit doesn't know, from a later Hammer, reads as [`SyncOutcome::Unknown`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum SyncOutcome {
-    #[default]
-    #[serde(rename = "success")]
-    Success,
-    #[serde(rename = "unchanged")]
-    Unchanged,
-    #[serde(rename = "needs_resolution")]
-    NeedsResolution,
-    #[serde(rename = "failed")]
-    Failed,
-    #[serde(rename = "skipped")]
-    Skipped,
-    /// A value this kit doesn't know. Hammer rejects it as an input.
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct SyncRunResult {
-    #[serde(rename = "accountSynced")]
-    pub account_synced: bool,
-    #[serde(rename = "ideasSynced")]
-    pub ideas_synced: bool,
-    pub projects: Vec<ProjectSyncResult>,
-    pub log: Vec<String>,
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SyncStatus {
@@ -821,29 +809,6 @@ pub fn search(project: &str, query: &str, options: SearchOptions) -> crate::Resu
 pub mod account {
     use super::*;
 
-    /// Log in to a sync server with an existing account. Accounts are created in the app.
-    ///
-    /// Needs `account.login` or `account:write` in the manifest's `[permissions]`.
-    pub fn login(url: &str, email: &str, password: &str) -> crate::Result<AccountStatus> {
-        #[derive(Serialize)]
-        struct Input<'a> {
-            url: &'a str,
-            email: &'a str,
-            password: &'a str,
-        }
-        crate::call("account.login", &Input { url, email, password })
-    }
-
-    /// Forget the sync server and every project's sync state for it, as removing the server in Settings does.
-    ///
-    /// Needs `account.logout` or `account:write` in the manifest's `[permissions]`.
-    pub fn logout() -> crate::Result<AccountStatus> {
-        #[derive(Serialize)]
-        struct Input {
-        }
-        crate::call("account.logout", &Input {  })
-    }
-
     /// The optional inputs of [`status`]; leave any out with `..Default::default()`.
     #[derive(Debug, Clone, Default, PartialEq, Serialize)]
     pub struct AccountStatusOptions {
@@ -900,7 +865,7 @@ pub mod draft {
 
     /// Replace a scene's text with one of its drafts, saving the replaced text as a draft first.
     ///
-    /// Needs `draft.apply` or `content:write` in the manifest's `[permissions]`.
+    /// Needs `draft.apply` or `content:prose` in the manifest's `[permissions]`.
     pub fn apply(project: &str, id: i32) -> crate::Result<DraftApplied> {
         #[derive(Serialize)]
         struct Input<'a> {
@@ -1343,6 +1308,44 @@ pub mod ops {
 
 }
 
+/// The `plugin` operations.
+pub mod plugin {
+    use super::*;
+
+    /// Install, or replace, a runtime plugin from a .hammerplugin file, granting it every permission its manifest asks for, which the reply lists. Takes effect at once in a running app; otherwise, the next time it starts.
+    ///
+    /// Needs `plugin.install` (by name) in the manifest's `[permissions]`.
+    pub fn install(path: &str) -> crate::Result<PluginSummary> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            path: &'a str,
+        }
+        crate::call("plugin.install", &Input { path })
+    }
+
+    /// The installed runtime plugins, and what each may use.
+    ///
+    /// Needs `plugin.list` or `plugins:read` in the manifest's `[permissions]`.
+    pub fn list() -> crate::Result<PluginList> {
+        #[derive(Serialize)]
+        struct Input {
+        }
+        crate::call("plugin.list", &Input {  })
+    }
+
+    /// Uninstall a runtime plugin, forgetting its cache and secrets. Its other settings are kept for a reinstall.
+    ///
+    /// Needs `plugin.uninstall` (by name) in the manifest's `[permissions]`.
+    pub fn uninstall(id: &str) -> crate::Result<PluginRemoved> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            id: &'a str,
+        }
+        crate::call("plugin.uninstall", &Input { id })
+    }
+
+}
+
 /// The `project` operations.
 pub mod project {
     use super::*;
@@ -1419,7 +1422,7 @@ pub mod project {
 
     /// Create a project from a Markdown or RTF manuscript, split into scenes by its headings or a chapter pattern.
     ///
-    /// Needs `project.import` or `content:write` in the manifest's `[permissions]`.
+    /// Needs `project.import` or `content:prose` in the manifest's `[permissions]`.
     pub fn import(format: ImportFileFormat, content: &[u8], options: ProjectImportOptions) -> crate::Result<ProjectImported> {
         #[derive(Serialize)]
         struct Input<'a> {
@@ -1473,7 +1476,7 @@ pub mod scene {
 
     /// Add markdown to the end of a scene's text, as a new paragraph.
     ///
-    /// Needs `scene.append` or `content:write` in the manifest's `[permissions]`.
+    /// Needs `scene.append` or `content:prose` in the manifest's `[permissions]`.
     pub fn append(project: &str, id: i32, markdown: &str) -> crate::Result<SceneWordCount> {
         #[derive(Serialize)]
         struct Input<'a> {
@@ -1630,7 +1633,7 @@ pub mod scene {
 
     /// Replace a scene's text with markdown. Mode draft saves it as a new draft of the scene and leaves the scene alone. Mode live replaces the scene's text, saving the old text as a draft first.
     ///
-    /// Needs `scene.write` or `content:write` in the manifest's `[permissions]`.
+    /// Needs `scene.write` or `content:prose` in the manifest's `[permissions]`.
     pub fn write(project: &str, id: i32, mode: WriteMode, markdown: &str, options: SceneWriteOptions) -> crate::Result<SceneWriteResult> {
         #[derive(Serialize)]
         struct Input<'a> {
@@ -1833,29 +1836,6 @@ pub mod stats {
 /// The `sync` operations.
 pub mod sync {
     use super::*;
-
-    /// The optional inputs of [`run`]; leave any out with `..Default::default()`.
-    #[derive(Debug, Clone, Default, PartialEq, Serialize)]
-    pub struct SyncRunOptions {
-        /// Sync only this project; account changes and ideas still sync.
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub project: Option<String>,
-        #[serde(rename = "onConflict")]
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub on_conflict: Option<ConflictChoice>,
-    }
-
-    /// Sync the account and every linked project with the server, as Sync all does. A project with a conflict is left for the app.
-    ///
-    /// Needs `sync.run` or `account:write` in the manifest's `[permissions]`.
-    pub fn run(options: SyncRunOptions) -> crate::Result<SyncRunResult> {
-        #[derive(Serialize)]
-        struct Input {
-            #[serde(flatten)]
-            options: SyncRunOptions,
-        }
-        crate::call("sync.run", &Input { options })
-    }
 
     /// Each project's link to the sync server, its last sync, and how many of its changes are waiting to sync.
     ///
