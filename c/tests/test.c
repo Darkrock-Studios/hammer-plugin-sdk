@@ -5,6 +5,7 @@
 #include "hammer_archive.h"
 #include "hammer_base64.h"
 #include "hammer_image.h"
+#include "hammer_text.h"
 #include "hammer_test.h"
 
 static int text_is(HammerText text, const char *expected) {
@@ -449,6 +450,52 @@ static void checks_archive_paths(void) {
   HAMMER_CHECK(hammer_archive_has(&archive, "a", 1) && hammer_archive_has(&archive, "ab", 2));
 }
 
+// Writes s, with each \u{...} replaced by its code point's UTF-8, to out; returns how many bytes it wrote.
+static size_t unescape(const char *s, size_t n, char *out) {
+  size_t length = 0;
+  for (size_t i = 0; i < n;) {
+    if (i + 3 < n && memcmp(s + i, "\\u{", 3) == 0) {
+      char *end;
+      uint32_t code = (uint32_t)strtoul(s + i + 3, &end, 16);
+      length += hammer_encode(code, out + length);
+      i = (size_t)(end - s) + 1;
+    } else {
+      out[length++] = s[i++];
+    }
+  }
+  return length;
+}
+
+// The cases in the SDK's tests/words.txt, which the Kotlin and Rust kits' tests read too.
+static void splits_words(void) {
+  char path[1024];
+  snprintf(path, sizeof path, "%.*s/../../tests/words.txt", (int)(strrchr(__FILE__, '/') - __FILE__), __FILE__);
+  FILE *file = fopen(path, "r");
+  HAMMER_CHECK(file != 0);
+  if (!file) return;
+  char line[1024], text[1024], expected[1024], found[1024];
+  while (fgets(line, sizeof line, file)) {
+    size_t n = strcspn(line, "\n");
+    if (n == 0 || line[0] == '#') continue;
+    char *tab = memchr(line, '\t', n);
+    size_t text_length = unescape(line, (size_t)(tab - line), text);
+    size_t expected_length = unescape(tab + 1, n - (size_t)(tab + 1 - line), expected);
+    expected[expected_length] = 0;
+    uint64_t count;
+    HammerWord *words = hammer_words((HammerText){text, text_length}, &count);
+    size_t at = 0;
+    for (uint64_t i = 0; i < count; i++) {
+      if (i) found[at++] = ' ';
+      memcpy(found + at, text + words[i].start, words[i].end - words[i].start);
+      at += words[i].end - words[i].start;
+    }
+    found[at] = 0;
+    if (strcmp(found, expected) != 0) fprintf(stderr, "  %.*s\n  expected: %s\n  actual:   %s\n", (int)n, line, expected, found);
+    HAMMER_CHECK(strcmp(found, expected) == 0);
+  }
+  fclose(file);
+}
+
 int main(void) {
   reads_requests();
   writes_replies();
@@ -459,5 +506,6 @@ int main(void) {
   encodes_base64();
   writes_archives();
   checks_archive_paths();
+  splits_words();
   return hammer_test_summary();
 }
