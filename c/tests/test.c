@@ -2,6 +2,7 @@
 #define HAMMER_IMPLEMENTATION
 #include "hammer.h"
 #include "hammer_action.h"
+#include "hammer_image.h"
 #include "hammer_test.h"
 
 static int text_is(HammerText text, const char *expected) {
@@ -161,9 +162,59 @@ static void reads_and_writes_entities(void) {
                      "{\"key\":\"s\",\"type\":\"scenes\",\"label\":\"S\"}]}}"));
 }
 
+static int32_t image_id(const char *reference) { return hammer_image_id((HammerText){reference, strlen(reference)}); }
+
+// The ids hammer_next_image_id finds in markdown, written "1,12,7".
+static int image_ids_are(const char *markdown, const char *expected) {
+  HammerText text = {markdown, strlen(markdown)};
+  char found[64] = "";
+  uint64_t at = 0;
+  int32_t id;
+  while ((id = hammer_next_image_id(text, &at)) >= 0) {
+    snprintf(found + strlen(found), sizeof found - strlen(found), "%s%d", found[0] ? "," : "", id);
+  }
+  int same = strcmp(found, expected) == 0 && at == text.length;
+  if (!same) fprintf(stderr, "  %s\n  expected: %s\n  actual:   %s\n", markdown, expected, found);
+  return same;
+}
+
+static void reads_image_references(void) {
+  HAMMER_CHECK(image_id("hammer://image/3") == 3);
+  HAMMER_CHECK(image_id("<hammer://image/3>") == 3);
+  HAMMER_CHECK(image_id("hammer://image/007") == 7);
+  HAMMER_CHECK(image_id("hammer://image/2147483647") == INT32_MAX);
+  static const char *const none[] = {
+      "https://example.com/3.png", "hammer://scene/3", "hammer://image/", "hammer://image/3x",
+      "hammer://image/-3", "hammer://image/+3", "hammer://image/3 ", " hammer://image/3",
+      "hammer://image/99999999999", "hammer://image/2147483648", "<hammer://image/3", "hammer://image/3>",
+      "<<hammer://image/3>>", "<>", "", "hammer://image/\xef\xbc\x93",
+  };
+  for (size_t i = 0; i < sizeof none / sizeof *none; i++) HAMMER_CHECK(image_id(none[i]) < 0);
+
+  HAMMER_CHECK(image_ids_are("![a](hammer://image/1)\n\nSee ![b](<hammer://image/12> \"t\") and [c]: hammer://image/7",
+                             "1,12,7"));
+  HAMMER_CHECK(image_ids_are("```\n![x](hammer://image/5)\n```\n![y](hammer://image/5)", "5,5"));
+  HAMMER_CHECK(image_ids_are("A [link](hammer://image/3).", "3"));
+  HAMMER_CHECK(image_ids_are("\xc3\xa9hammer://image/4\xc3\xa9", "4"));
+  HAMMER_CHECK(image_ids_are("No images here.", ""));
+  HAMMER_CHECK(image_ids_are("hammer://image/12", "12"));
+  HAMMER_CHECK(image_ids_are("hammer://image/12.png", "12"));
+  HAMMER_CHECK(image_ids_are("![a](hammer://image/3) ![b](hammer://image/99999999999)", "3"));
+  static const char *const unbounded[] = {
+      "hammer://image/12x", "hammer://image/12_", "xhammer://image/3", "_hammer://image/3", "+hammer://image/3",
+      ".hammer://image/3", "-hammer://image/3", "9hammer://image/3", "hammer://image/", "hammer://image/x",
+  };
+  for (size_t i = 0; i < sizeof unbounded / sizeof *unbounded; i++) HAMMER_CHECK(image_ids_are(unbounded[i], ""));
+
+  HammerText short_text = {"hammer://image/3", 16};
+  uint64_t past = UINT64_MAX - 4;
+  HAMMER_CHECK(hammer_next_image_id(short_text, &past) == -1 && past == short_text.length);
+}
+
 int main(void) {
   reads_requests();
   writes_replies();
   reads_and_writes_entities();
+  reads_image_references();
   return hammer_test_summary();
 }

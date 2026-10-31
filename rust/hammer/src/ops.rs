@@ -191,6 +191,9 @@ pub struct Entry {
     pub aliases: Vec<String>,
     #[serde(rename = "hasImage")]
     pub has_image: bool,
+    /// Image ids in order, primary first. An id can name an image no longer in the project.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub images: Option<Vec<i32>>,
     /// Scene ids whose references to this entry have been confirmed.
     #[serde(rename = "referencedBy")]
     pub referenced_by: Vec<i32>,
@@ -205,11 +208,17 @@ pub struct EntryCount {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct EntryImage {
-    /// jpg, jpeg, png, or webp.
+pub struct EntryImageSummary {
+    pub id: i32,
+    pub name: String,
+    /// One of [ImageFormat.ALLOWED_EXTENSIONS].
     pub extension: String,
-    #[serde(with = "crate::base64::bytes")]
-    pub content: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EntryImages {
+    pub images: Vec<EntryImageSummary>,
 }
 
 /// A value this kit doesn't know, from a later Hammer, reads as [`EntryKind::Unknown`].
@@ -290,6 +299,77 @@ pub struct Idea {
 #[serde(default)]
 pub struct Ideas {
     pub ideas: Vec<Idea>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImageContent {
+    pub id: i32,
+    pub name: String,
+    pub extension: String,
+    #[serde(with = "crate::base64::bytes")]
+    pub content: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImageDeleted {
+    pub id: i32,
+    pub name: String,
+    pub extension: String,
+    /// Everything the image was taken out of before it was deleted.
+    #[serde(rename = "removedFrom")]
+    pub removed_from: Vec<ImageUser>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImageSummary {
+    pub id: i32,
+    pub name: String,
+    /// One of [ImageFormat.ALLOWED_EXTENSIONS].
+    pub extension: String,
+    /// Whether an entry or a text in the project uses the image.
+    #[serde(rename = "inUse")]
+    pub in_use: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImageUser {
+    pub kind: ImageUserKind,
+    /// Null for [ImageUserKind.Cover], which is not an entity.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub id: Option<i32>,
+}
+
+/// A value this kit doesn't know, from a later Hammer, reads as [`ImageUserKind::Unknown`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ImageUserKind {
+    #[default]
+    #[serde(rename = "scene")]
+    Scene,
+    #[serde(rename = "note")]
+    Note,
+    #[serde(rename = "timeline")]
+    Timeline,
+    #[serde(rename = "entry")]
+    Entry,
+    #[serde(rename = "draft")]
+    Draft,
+    #[serde(rename = "image")]
+    Image,
+    #[serde(rename = "cover")]
+    Cover,
+    /// A value this kit doesn't know. Hammer rejects it as an input.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Images {
+    pub images: Vec<ImageSummary>,
 }
 
 /// A value this kit doesn't know, from a later Hammer, reads as [`ImportFileFormat::Unknown`].
@@ -952,7 +1032,7 @@ pub mod entry {
         crate::call("entry.create", &Input { project, name, r#type, text, options })
     }
 
-    /// Delete an encyclopedia entry, and its image, for good.
+    /// Delete an encyclopedia entry for good. Its images stay in the project.
     ///
     /// Needs `entry.delete` (by name) in the manifest's `[permissions]`.
     pub fn delete(project: &str, id: i32) -> crate::Result<EntrySummary> {
@@ -1024,38 +1104,28 @@ pub mod entry {
         crate::call("entry.update", &Input { project, id, text, options })
     }
 
-    /// The `entry.image` operations.
-    pub mod image {
+    /// The `entry.images` operations.
+    pub mod images {
         use super::*;
 
-        /// An encyclopedia entry's image.
+        /// Add an image already in the project to the end of an encyclopedia entry's images.
         ///
-        /// Needs `entry.image.get` or `content:read` in the manifest's `[permissions]`.
-        pub fn get(project: &str, id: i32) -> crate::Result<EntryImage> {
+        /// Needs `entry.images.add` or `content:write` in the manifest's `[permissions]`.
+        pub fn add(project: &str, id: i32, image_id: i32) -> crate::Result<EntryImages> {
             #[derive(Serialize)]
             struct Input<'a> {
                 project: &'a str,
                 id: i32,
+                #[serde(rename = "imageId")]
+                image_id: i32,
             }
-            crate::call("entry.image.get", &Input { project, id })
+            crate::call("entry.images.add", &Input { project, id, image_id })
         }
 
-        /// Remove an encyclopedia entry's image.
+        /// Add a new image to the project, named after an encyclopedia entry, and to the end of the entry's images. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
         ///
-        /// Needs `entry.image.remove` or `content:write` in the manifest's `[permissions]`.
-        pub fn remove(project: &str, id: i32) -> crate::Result<Entry> {
-            #[derive(Serialize)]
-            struct Input<'a> {
-                project: &'a str,
-                id: i32,
-            }
-            crate::call("entry.image.remove", &Input { project, id })
-        }
-
-        /// Set an encyclopedia entry's image, replacing any it has. The extension is jpg, jpeg, png, or webp, and must match the image.
-        ///
-        /// Needs `entry.image.set` or `content:write` in the manifest's `[permissions]`.
-        pub fn set(project: &str, id: i32, extension: &str, content: &[u8]) -> crate::Result<Entry> {
+        /// Needs `entry.images.import` or `content:write` in the manifest's `[permissions]`.
+        pub fn import(project: &str, id: i32, extension: &str, content: &[u8]) -> crate::Result<EntryImages> {
             #[derive(Serialize)]
             struct Input<'a> {
                 project: &'a str,
@@ -1064,7 +1134,47 @@ pub mod entry {
                 #[serde(serialize_with = "crate::base64::serialize")]
                 content: &'a [u8],
             }
-            crate::call("entry.image.set", &Input { project, id, extension, content })
+            crate::call("entry.images.import", &Input { project, id, extension, content })
+        }
+
+        /// The images an encyclopedia entry shows, primary first.
+        ///
+        /// Needs `entry.images.list` or `content:read` in the manifest's `[permissions]`.
+        pub fn list(project: &str, id: i32) -> crate::Result<EntryImages> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+                id: i32,
+            }
+            crate::call("entry.images.list", &Input { project, id })
+        }
+
+        /// Make one of an encyclopedia entry's images its primary image, moving it first.
+        ///
+        /// Needs `entry.images.primary` or `content:write` in the manifest's `[permissions]`.
+        pub fn primary(project: &str, id: i32, image_id: i32) -> crate::Result<EntryImages> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+                id: i32,
+                #[serde(rename = "imageId")]
+                image_id: i32,
+            }
+            crate::call("entry.images.primary", &Input { project, id, image_id })
+        }
+
+        /// Take an image off an encyclopedia entry. The image stays in the project.
+        ///
+        /// Needs `entry.images.remove` or `content:write` in the manifest's `[permissions]`.
+        pub fn remove(project: &str, id: i32, image_id: i32) -> crate::Result<EntryImages> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+                id: i32,
+                #[serde(rename = "imageId")]
+                image_id: i32,
+            }
+            crate::call("entry.images.remove", &Input { project, id, image_id })
         }
 
     }
@@ -1188,6 +1298,90 @@ pub mod idea {
             options: IdeaUpdateOptions,
         }
         crate::call("idea.update", &Input { id, content, options })
+    }
+
+}
+
+/// The `image` operations.
+pub mod image {
+    use super::*;
+
+    /// Add an image to a project. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
+    ///
+    /// Needs `image.add` or `content:write` in the manifest's `[permissions]`.
+    pub fn add(project: &str, name: &str, extension: &str, content: &[u8]) -> crate::Result<ImageSummary> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            name: &'a str,
+            extension: &'a str,
+            #[serde(serialize_with = "crate::base64::serialize")]
+            content: &'a [u8],
+        }
+        crate::call("image.add", &Input { project, name, extension, content })
+    }
+
+    /// Delete an image for good, first taking it out of every entry and text that uses it, and the project cover.
+    ///
+    /// Needs `image.delete` (by name) in the manifest's `[permissions]`.
+    pub fn delete(project: &str, id: i32) -> crate::Result<ImageDeleted> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            id: i32,
+        }
+        crate::call("image.delete", &Input { project, id })
+    }
+
+    /// One image's name, extension, and bytes.
+    ///
+    /// Needs `image.get` or `content:read` in the manifest's `[permissions]`.
+    pub fn get(project: &str, id: i32) -> crate::Result<ImageContent> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            id: i32,
+        }
+        crate::call("image.get", &Input { project, id })
+    }
+
+    /// A project's images, with whether anything in the project uses each one.
+    ///
+    /// Needs `image.list` or `content:read` in the manifest's `[permissions]`.
+    pub fn list(project: &str) -> crate::Result<Images> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+        }
+        crate::call("image.list", &Input { project })
+    }
+
+    /// Rename an image.
+    ///
+    /// Needs `image.rename` or `content:write` in the manifest's `[permissions]`.
+    pub fn rename(project: &str, id: i32, name: &str) -> crate::Result<ImageSummary> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            id: i32,
+            name: &'a str,
+        }
+        crate::call("image.rename", &Input { project, id, name })
+    }
+
+    /// Replace an image's bytes, keeping its id, so everything that uses it shows the new image. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
+    ///
+    /// Needs `image.replace` or `content:write` in the manifest's `[permissions]`.
+    pub fn replace(project: &str, id: i32, extension: &str, content: &[u8]) -> crate::Result<ImageSummary> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            id: i32,
+            extension: &'a str,
+            #[serde(serialize_with = "crate::base64::serialize")]
+            content: &'a [u8],
+        }
+        crate::call("image.replace", &Input { project, id, extension, content })
     }
 
 }

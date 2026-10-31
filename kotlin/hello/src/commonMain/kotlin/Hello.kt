@@ -11,6 +11,8 @@ import hammer.Diagnostic
 import hammer.EntityRef
 import hammer.ExportRequest
 import hammer.Fix
+import hammer.OperationException
+import hammer.findImageIds
 import hammer.input
 import hammer.ops.Hammer
 import hammer.ops.SceneKind
@@ -88,6 +90,28 @@ fun about(request: ActionRequest): ActionReply {
 			appendLine("# ${entry.name}")
 			if (entry.aliases.isNotEmpty()) appendLine("Also known as ${entry.aliases.joinToString()}.")
 			appendLine("In ${if (scenes == 1) "1 scene" else "$scenes scenes"}.")
+		},
+	)
+}
+
+// An action run from a scene: the images its Markdown shows, read with image.get. An id can name an
+// image since deleted from the project.
+fun sceneImages(request: ActionRequest): ActionReply {
+	val scene = request.context.id ?: return ActionReply.message("Run it from a scene")
+	val ids = findImageIds(Hammer.scene.read(request.project, scene).markdown)
+	if (ids.isEmpty()) return ActionReply.message("No images in this scene")
+	return ActionReply.document(
+		buildString {
+			appendLine("# Images")
+			ids.forEach { id ->
+				val image = try {
+					Hammer.image.get(request.project, id)
+				} catch (e: OperationException) {
+					if (e.kind != "NotFound") throw e
+					null
+				}
+				appendLine(if (image == null) "- Image $id: not in the project" else "- ${image.name}.${image.extension}: ${image.content.size} bytes")
+			}
 		},
 	)
 }

@@ -200,6 +200,10 @@ public data class Entry(
 	public val aliases: List<String> = emptyList(),
 	public val hasImage: Boolean = false,
 	/**
+	 * Image ids in order, primary first. An id can name an image no longer in the project.
+	 */
+	public val images: List<Int>? = null,
+	/**
 	 * Scene ids whose references to this entry have been confirmed.
 	 */
 	public val referencedBy: List<Int> = emptyList(),
@@ -212,13 +216,18 @@ public data class EntryCount(
 )
 
 @Serializable
-public data class EntryImage(
+public data class EntryImageSummary(
+	public val id: Int = 0,
+	public val name: String = "",
 	/**
-	 * jpg, jpeg, png, or webp.
+	 * One of [ImageFormat.ALLOWED_EXTENSIONS].
 	 */
 	public val extension: String = "",
-	@Serializable(with = Base64Bytes::class)
-	public val content: ByteArray = byteArrayOf(),
+)
+
+@Serializable
+public data class EntryImages(
+	public val images: List<EntryImageSummary> = emptyList(),
 )
 
 /**
@@ -300,6 +309,77 @@ public data class Idea(
 @Serializable
 public data class Ideas(
 	public val ideas: List<Idea> = emptyList(),
+)
+
+@Serializable
+public data class ImageContent(
+	public val id: Int = 0,
+	public val name: String = "",
+	public val extension: String = "",
+	@Serializable(with = Base64Bytes::class)
+	public val content: ByteArray = byteArrayOf(),
+)
+
+@Serializable
+public data class ImageDeleted(
+	public val id: Int = 0,
+	public val name: String = "",
+	public val extension: String = "",
+	/**
+	 * Everything the image was taken out of before it was deleted.
+	 */
+	public val removedFrom: List<ImageUser> = emptyList(),
+)
+
+@Serializable
+public data class ImageSummary(
+	public val id: Int = 0,
+	public val name: String = "",
+	/**
+	 * One of [ImageFormat.ALLOWED_EXTENSIONS].
+	 */
+	public val extension: String = "",
+	/**
+	 * Whether an entry or a text in the project uses the image.
+	 */
+	public val inUse: Boolean = false,
+)
+
+@Serializable
+public data class ImageUser(
+	public val kind: ImageUserKind = ImageUserKind.Scene,
+	/**
+	 * Null for [ImageUserKind.Cover], which is not an entity.
+	 */
+	public val id: Int? = null,
+)
+
+/**
+ * A value this kit doesn't know, from a later Hammer, reads as [Unknown].
+ */
+@Serializable(with = ImageUserKind.Serializer::class)
+public enum class ImageUserKind(
+	/**
+	 * What Hammer calls it; empty for [Unknown].
+	 */
+	public val `value`: String,
+) {
+	Scene("scene"),
+	Note("note"),
+	Timeline("timeline"),
+	Entry("entry"),
+	Draft("draft"),
+	Image("image"),
+	Cover("cover"),
+	Unknown(""),
+	;
+
+	internal object Serializer : OperationEnumSerializer<ImageUserKind>("hammer.ops.ImageUserKind", ImageUserKind.entries, ImageUserKind.Unknown, { it.value })
+}
+
+@Serializable
+public data class Images(
+	public val images: List<ImageSummary> = emptyList(),
 )
 
 /**

@@ -34,7 +34,7 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 
    ```kotlin
    plugins {
-   	id("com.darkrockstudios.hammer.plugin") version "0.6.0"
+   	id("com.darkrockstudios.hammer.plugin") version "0.7.0"
    }
    ```
 
@@ -280,6 +280,49 @@ empty reads as `EntityRef?`, and one with `multiple` as `List<EntityRef>`. On a 
 `Field.entity("who", "Character", kinds = listOf("entry"), entryTypes = listOf("person"), default = here)`
 makes the same field, starting with `here` picked. C reads a pick with `hammer_input_entity`, and each
 of a list's with `hammer_entity_read`; Rust reads one into `hammer::action::EntityRef`.
+
+## Images in a scene
+
+Hammer writes a project image into Markdown as `![image](hammer://image/5)`, the destination sometimes
+in angle brackets, and the alt text means nothing: Hammer shows the image's own name. `findImageIds`
+gives every image id a scene's Markdown refers to, each once and in the order they first appear, and `Hammer.image.get` an image's name,
+extension, and bytes. An id can name an image since deleted, so `image.get` may fail as NotFound. This
+one runs from a scene, which `places` allows, and the manifest asks for `scene.read` and `image.get`:
+
+```toml
+[[actions]]
+name = "images"
+label = "Scene images"
+places = ["scene"]
+```
+
+```kotlin
+fun sceneImages(request: ActionRequest): ActionReply {
+	val scene = request.context.id ?: return ActionReply.message("Run it from a scene")
+	val ids = findImageIds(Hammer.scene.read(request.project, scene).markdown)
+	if (ids.isEmpty()) return ActionReply.message("No images in this scene")
+	return ActionReply.document(
+		buildString {
+			appendLine("# Images")
+			ids.forEach { id ->
+				val image = try {
+					Hammer.image.get(request.project, id)
+				} catch (e: OperationException) {
+					if (e.kind != "NotFound") throw e
+					null
+				}
+				appendLine(if (image == null) "- Image $id: not in the project" else "- ${image.name}.${image.extension}: ${image.content.size} bytes")
+			}
+		},
+	)
+}
+```
+
+For one reference, `getImage(project, "hammer://image/5")` reads it and `parseImageReference` gives its
+id, or null for any other destination; `imageReference(5)` writes one. Rust has the same in
+`hammer::images` (`find_ids`, `get`, `parse_reference`, `reference`). C has `hammer_image.h`:
+`hammer_next_image_id` steps through a text's references, once for each time one appears, and
+`hammer_image_id` reads one, giving -1 for any other.
 
 ## Pages, buttons, and state
 

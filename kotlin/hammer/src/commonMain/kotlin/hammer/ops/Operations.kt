@@ -51,6 +51,11 @@ public object Hammer {
 	public val idea: IdeaOperations = IdeaOperations
 
 	/**
+	 * The `image` operations.
+	 */
+	public val image: ImageOperations = ImageOperations
+
+	/**
 	 * The `note` operations.
 	 */
 	public val note: NoteOperations = NoteOperations
@@ -204,9 +209,9 @@ public object DraftOperations {
 
 public object EntryOperations {
 	/**
-	 * The `entry.image` operations.
+	 * The `entry.images` operations.
 	 */
-	public val image: EntryImageOperations = EntryImageOperations
+	public val images: EntryImagesOperations = EntryImagesOperations
 
 	/**
 	 * Add an encyclopedia entry to a project.
@@ -231,7 +236,7 @@ public object EntryOperations {
 	})
 
 	/**
-	 * Delete an encyclopedia entry, and its image, for good.
+	 * Delete an encyclopedia entry for good. Its images stay in the project.
 	 *
 	 * Needs `entry.delete` (by name) in the manifest's `[permissions]`.
 	 */
@@ -287,43 +292,82 @@ public object EntryOperations {
 	})
 }
 
-public object EntryImageOperations {
+public object EntryImagesOperations {
 	/**
-	 * An encyclopedia entry's image.
+	 * Add an image already in the project to the end of an encyclopedia entry's images.
 	 *
-	 * Needs `entry.image.get` or `content:read` in the manifest's `[permissions]`.
+	 * Needs `entry.images.add` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
 	 */
-	public fun `get`(project: String, id: Int): EntryImage = operation("entry.image.get", buildJsonObject {
+	public fun add(
+		project: String,
+		id: Int,
+		imageId: Int,
+	): EntryImages = operation("entry.images.add", buildJsonObject {
 		put("project", operationValue(project))
 		put("id", operationValue(id))
+		put("imageId", operationValue(imageId))
 	})
 
 	/**
-	 * Remove an encyclopedia entry's image.
+	 * Add a new image to the project, named after an encyclopedia entry, and to the end of the entry's images. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
 	 *
-	 * Needs `entry.image.remove` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `entry.images.import` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
+	 * @param extension One of [ImageFormat.ALLOWED_EXTENSIONS].
 	 */
-	public fun remove(project: String, id: Int): Entry = operation("entry.image.remove", buildJsonObject {
-		put("project", operationValue(project))
-		put("id", operationValue(id))
-	})
-
-	/**
-	 * Set an encyclopedia entry's image, replacing any it has. The extension is jpg, jpeg, png, or webp, and must match the image.
-	 *
-	 * Needs `entry.image.set` or `content:write` in the manifest's `[permissions]`.
-	 * @param extension jpg, jpeg, png, or webp.
-	 */
-	public fun `set`(
+	public fun `import`(
 		project: String,
 		id: Int,
 		extension: String,
 		content: ByteArray,
-	): Entry = operation("entry.image.set", buildJsonObject {
+	): EntryImages = operation("entry.images.import", buildJsonObject {
 		put("project", operationValue(project))
 		put("id", operationValue(id))
 		put("extension", operationValue(extension))
 		put("content", operationValue(content, Base64Bytes))
+	})
+
+	/**
+	 * The images an encyclopedia entry shows, primary first.
+	 *
+	 * Needs `entry.images.list` or `content:read` in the manifest's `[permissions]`.
+	 */
+	public fun list(project: String, id: Int): EntryImages = operation("entry.images.list", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+	})
+
+	/**
+	 * Make one of an encyclopedia entry's images its primary image, moving it first.
+	 *
+	 * Needs `entry.images.primary` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
+	 */
+	public fun primary(
+		project: String,
+		id: Int,
+		imageId: Int,
+	): EntryImages = operation("entry.images.primary", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("imageId", operationValue(imageId))
+	})
+
+	/**
+	 * Take an image off an encyclopedia entry. The image stays in the project.
+	 *
+	 * Needs `entry.images.remove` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
+	 */
+	public fun remove(
+		project: String,
+		id: Int,
+		imageId: Int,
+	): EntryImages = operation("entry.images.remove", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("imageId", operationValue(imageId))
 	})
 }
 
@@ -406,6 +450,89 @@ public object IdeaOperations {
 		put("content", operationValue(content))
 		if (title != null) put("title", operationValue(title))
 		if (tags != null) put("tags", operationValue(tags))
+	})
+}
+
+public object ImageOperations {
+	/**
+	 * Add an image to a project. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
+	 *
+	 * Needs `image.add` or `content:write` in the manifest's `[permissions]`.
+	 * @param extension One of [ImageFormat.ALLOWED_EXTENSIONS].
+	 */
+	public fun add(
+		project: String,
+		name: String,
+		extension: String,
+		content: ByteArray,
+	): ImageSummary = operation("image.add", buildJsonObject {
+		put("project", operationValue(project))
+		put("name", operationValue(name))
+		put("extension", operationValue(extension))
+		put("content", operationValue(content, Base64Bytes))
+	})
+
+	/**
+	 * Delete an image for good, first taking it out of every entry and text that uses it, and the project cover.
+	 *
+	 * Needs `image.delete` (by name) in the manifest's `[permissions]`.
+	 */
+	public fun delete(project: String, id: Int): ImageDeleted = operation("image.delete", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+	})
+
+	/**
+	 * One image's name, extension, and bytes.
+	 *
+	 * Needs `image.get` or `content:read` in the manifest's `[permissions]`.
+	 */
+	public fun `get`(project: String, id: Int): ImageContent = operation("image.get", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+	})
+
+	/**
+	 * A project's images, with whether anything in the project uses each one.
+	 *
+	 * Needs `image.list` or `content:read` in the manifest's `[permissions]`.
+	 * @param project The project's name, or its server project id.
+	 */
+	public fun list(project: String): Images = operation("image.list", buildJsonObject {
+		put("project", operationValue(project))
+	})
+
+	/**
+	 * Rename an image.
+	 *
+	 * Needs `image.rename` or `content:write` in the manifest's `[permissions]`.
+	 */
+	public fun rename(
+		project: String,
+		id: Int,
+		name: String,
+	): ImageSummary = operation("image.rename", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("name", operationValue(name))
+	})
+
+	/**
+	 * Replace an image's bytes, keeping its id, so everything that uses it shows the new image. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
+	 *
+	 * Needs `image.replace` or `content:write` in the manifest's `[permissions]`.
+	 * @param extension One of [ImageFormat.ALLOWED_EXTENSIONS]; it may differ from the image's current one.
+	 */
+	public fun replace(
+		project: String,
+		id: Int,
+		extension: String,
+		content: ByteArray,
+	): ImageSummary = operation("image.replace", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("extension", operationValue(extension))
+		put("content", operationValue(content, Base64Bytes))
 	})
 }
 

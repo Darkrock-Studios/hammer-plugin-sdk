@@ -14,6 +14,7 @@ fun action(): Int = action { request ->
 		"outline" -> outline(request)
 		"count" -> countWords(request)
 		"about" -> about(request)
+		"images" -> sceneImages(request)
 		"tip" -> tip()
 		"wave" -> wave(request)
 		else -> null

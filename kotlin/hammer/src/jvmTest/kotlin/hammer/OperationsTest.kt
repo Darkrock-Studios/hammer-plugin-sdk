@@ -67,8 +67,11 @@ class OperationsTest {
 		})
 		assertContentEquals("foobar".encodeToByteArray(), Hammer.project.export("Novel", "plaintext.txt").content)
 
-		answering("entry.image.set", buildJsonObject { put("id", 1); put("hasImage", true) })
-		runCatching { Hammer.entry.image.set("Novel", 1, "png", byteArrayOf(0, -1)) }
+		answering("image.get", buildJsonObject { put("id", 3); put("name", "Map"); put("extension", "png"); put("content", "AP8=") })
+		assertContentEquals(byteArrayOf(0, -1), Hammer.image.get("Novel", 3).content)
+
+		answering("image.add", buildJsonObject { put("id", 3); put("name", "Map"); put("extension", "png"); put("inUse", false) })
+		assertEquals(3, Hammer.image.add("Novel", "Map", "png", byteArrayOf(0, -1)).id)
 		assertEquals(JsonPrimitive("AP8="), inputs.last().second["content"])
 	}
 

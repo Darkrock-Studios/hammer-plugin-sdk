@@ -504,6 +504,13 @@
                     "hasImage": {
                         "type": "boolean"
                     },
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Image ids in order, primary first. An id can name an image no longer in the project."
+                    },
                     "referencedBy": {
                         "type": "array",
                         "items": {
@@ -528,7 +535,7 @@
         },
         {
             "name": "entry.delete",
-            "description": "Delete an encyclopedia entry, and its image, for good.",
+            "description": "Delete an encyclopedia entry for good. Its images stay in the project.",
             "access": "destructive",
             "scope": "content",
             "input": {
@@ -586,8 +593,140 @@
             }
         },
         {
-            "name": "entry.image.get",
-            "description": "An encyclopedia entry's image.",
+            "name": "entry.images.add",
+            "description": "Add an image already in the project to the end of an encyclopedia entry's images.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "The entry."
+                    },
+                    "imageId": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "project",
+                    "id",
+                    "imageId"
+                ],
+                "additionalProperties": false,
+                "x-name": "EntryImageInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "extension": {
+                                    "type": "string",
+                                    "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "extension"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "EntryImageSummary"
+                        }
+                    }
+                },
+                "required": [
+                    "images"
+                ],
+                "additionalProperties": false,
+                "x-name": "EntryImages"
+            }
+        },
+        {
+            "name": "entry.images.import",
+            "description": "Add a new image to the project, named after an encyclopedia entry, and to the end of the entry's images. The extension is jpg, jpeg, png, webp, or svg, and must match the image.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "The entry."
+                    },
+                    "extension": {
+                        "type": "string",
+                        "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                    },
+                    "content": {
+                        "type": "string",
+                        "contentEncoding": "base64"
+                    }
+                },
+                "required": [
+                    "project",
+                    "id",
+                    "extension",
+                    "content"
+                ],
+                "additionalProperties": false,
+                "x-name": "EntryImageImportInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "extension": {
+                                    "type": "string",
+                                    "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "extension"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "EntryImageSummary"
+                        }
+                    }
+                },
+                "required": [
+                    "images"
+                ],
+                "additionalProperties": false,
+                "x-name": "EntryImages"
+            }
+        },
+        {
+            "name": "entry.images.list",
+            "description": "The images an encyclopedia entry shows, primary first.",
             "access": "read",
             "scope": "content",
             "input": {
@@ -610,26 +749,42 @@
             "output": {
                 "type": "object",
                 "properties": {
-                    "extension": {
-                        "type": "string",
-                        "description": "jpg, jpeg, png, or webp."
-                    },
-                    "content": {
-                        "type": "string",
-                        "contentEncoding": "base64"
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "extension": {
+                                    "type": "string",
+                                    "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "extension"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "EntryImageSummary"
+                        }
                     }
                 },
                 "required": [
-                    "extension",
-                    "content"
+                    "images"
                 ],
                 "additionalProperties": false,
-                "x-name": "EntryImage"
+                "x-name": "EntryImages"
             }
         },
         {
-            "name": "entry.image.remove",
-            "description": "Remove an encyclopedia entry's image.",
+            "name": "entry.images.primary",
+            "description": "Make one of an encyclopedia entry's images its primary image, moving it first.",
             "access": "write",
             "scope": "content",
             "input": {
@@ -639,79 +794,60 @@
                         "type": "string"
                     },
                     "id": {
+                        "type": "integer",
+                        "description": "The entry."
+                    },
+                    "imageId": {
                         "type": "integer"
                     }
                 },
                 "required": [
                     "project",
-                    "id"
+                    "id",
+                    "imageId"
                 ],
                 "additionalProperties": false,
-                "x-name": "ProjectItemInput"
+                "x-name": "EntryImageInput"
             },
             "output": {
                 "type": "object",
                 "properties": {
-                    "id": {
-                        "type": "integer"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "person",
-                            "place",
-                            "thing",
-                            "event",
-                            "idea"
-                        ],
-                        "x-name": "EntryKind"
-                    },
-                    "text": {
-                        "type": "string"
-                    },
-                    "tags": {
+                    "images": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "extension": {
+                                    "type": "string",
+                                    "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "extension"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "EntryImageSummary"
                         }
-                    },
-                    "aliases": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "hasImage": {
-                        "type": "boolean"
-                    },
-                    "referencedBy": {
-                        "type": "array",
-                        "items": {
-                            "type": "integer"
-                        },
-                        "description": "Scene ids whose references to this entry have been confirmed."
                     }
                 },
                 "required": [
-                    "id",
-                    "name",
-                    "type",
-                    "text",
-                    "tags",
-                    "aliases",
-                    "hasImage",
-                    "referencedBy"
+                    "images"
                 ],
                 "additionalProperties": false,
-                "x-name": "Entry"
+                "x-name": "EntryImages"
             }
         },
         {
-            "name": "entry.image.set",
-            "description": "Set an encyclopedia entry's image, replacing any it has. The extension is jpg, jpeg, png, or webp, and must match the image.",
+            "name": "entry.images.remove",
+            "description": "Take an image off an encyclopedia entry. The image stays in the project.",
             "access": "write",
             "scope": "content",
             "input": {
@@ -721,84 +857,55 @@
                         "type": "string"
                     },
                     "id": {
+                        "type": "integer",
+                        "description": "The entry."
+                    },
+                    "imageId": {
                         "type": "integer"
-                    },
-                    "extension": {
-                        "type": "string",
-                        "description": "jpg, jpeg, png, or webp."
-                    },
-                    "content": {
-                        "type": "string",
-                        "contentEncoding": "base64"
                     }
                 },
                 "required": [
                     "project",
                     "id",
-                    "extension",
-                    "content"
+                    "imageId"
                 ],
                 "additionalProperties": false,
-                "x-name": "EntryImageSetInput"
+                "x-name": "EntryImageInput"
             },
             "output": {
                 "type": "object",
                 "properties": {
-                    "id": {
-                        "type": "integer"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "person",
-                            "place",
-                            "thing",
-                            "event",
-                            "idea"
-                        ],
-                        "x-name": "EntryKind"
-                    },
-                    "text": {
-                        "type": "string"
-                    },
-                    "tags": {
+                    "images": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "extension": {
+                                    "type": "string",
+                                    "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "extension"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "EntryImageSummary"
                         }
-                    },
-                    "aliases": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "hasImage": {
-                        "type": "boolean"
-                    },
-                    "referencedBy": {
-                        "type": "array",
-                        "items": {
-                            "type": "integer"
-                        },
-                        "description": "Scene ids whose references to this entry have been confirmed."
                     }
                 },
                 "required": [
-                    "id",
-                    "name",
-                    "type",
-                    "text",
-                    "tags",
-                    "aliases",
-                    "hasImage",
-                    "referencedBy"
+                    "images"
                 ],
                 "additionalProperties": false,
-                "x-name": "Entry"
+                "x-name": "EntryImages"
             }
         },
         {
@@ -957,6 +1064,13 @@
                     "hasImage": {
                         "type": "boolean"
                     },
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Image ids in order, primary first. An id can name an image no longer in the project."
+                    },
                     "referencedBy": {
                         "type": "array",
                         "items": {
@@ -1079,6 +1193,13 @@
                     },
                     "hasImage": {
                         "type": "boolean"
+                    },
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Image ids in order, primary first. An id can name an image no longer in the project."
                     },
                     "referencedBy": {
                         "type": "array",
@@ -1738,6 +1859,372 @@
                 ],
                 "additionalProperties": false,
                 "x-name": "Idea"
+            }
+        },
+        {
+            "name": "image.add",
+            "description": "Add an image to a project. The extension is jpg, jpeg, png, webp, or svg, and must match the image.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "extension": {
+                        "type": "string",
+                        "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                    },
+                    "content": {
+                        "type": "string",
+                        "contentEncoding": "base64"
+                    }
+                },
+                "required": [
+                    "project",
+                    "name",
+                    "extension",
+                    "content"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageAddInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "extension": {
+                        "type": "string",
+                        "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                    },
+                    "inUse": {
+                        "type": "boolean",
+                        "description": "Whether an entry or a text in the project uses the image."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "extension",
+                    "inUse"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageSummary"
+            }
+        },
+        {
+            "name": "image.delete",
+            "description": "Delete an image for good, first taking it out of every entry and text that uses it, and the project cover.",
+            "access": "destructive",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "project",
+                    "id"
+                ],
+                "additionalProperties": false,
+                "x-name": "ProjectItemInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "extension": {
+                        "type": "string"
+                    },
+                    "removedFrom": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                        "scene",
+                                        "note",
+                                        "timeline",
+                                        "entry",
+                                        "draft",
+                                        "image",
+                                        "cover"
+                                    ],
+                                    "x-name": "ImageUserKind"
+                                },
+                                "id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "Null for [ImageUserKind.Cover], which is not an entity."
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "ImageUser"
+                        },
+                        "description": "Everything the image was taken out of before it was deleted."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "extension",
+                    "removedFrom"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageDeleted"
+            }
+        },
+        {
+            "name": "image.get",
+            "description": "One image's name, extension, and bytes.",
+            "access": "read",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "project",
+                    "id"
+                ],
+                "additionalProperties": false,
+                "x-name": "ProjectItemInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "extension": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string",
+                        "contentEncoding": "base64"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "extension",
+                    "content"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageContent"
+            }
+        },
+        {
+            "name": "image.list",
+            "description": "A project's images, with whether anything in the project uses each one.",
+            "access": "read",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string",
+                        "description": "The project's name, or its server project id."
+                    }
+                },
+                "required": [
+                    "project"
+                ],
+                "additionalProperties": false,
+                "x-name": "ProjectInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "extension": {
+                                    "type": "string",
+                                    "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                                },
+                                "inUse": {
+                                    "type": "boolean",
+                                    "description": "Whether an entry or a text in the project uses the image."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "extension",
+                                "inUse"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "ImageSummary"
+                        }
+                    }
+                },
+                "required": [
+                    "images"
+                ],
+                "additionalProperties": false,
+                "x-name": "Images"
+            }
+        },
+        {
+            "name": "image.rename",
+            "description": "Rename an image.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "project",
+                    "id",
+                    "name"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageRenameInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "extension": {
+                        "type": "string",
+                        "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                    },
+                    "inUse": {
+                        "type": "boolean",
+                        "description": "Whether an entry or a text in the project uses the image."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "extension",
+                    "inUse"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageSummary"
+            }
+        },
+        {
+            "name": "image.replace",
+            "description": "Replace an image's bytes, keeping its id, so everything that uses it shows the new image. The extension is jpg, jpeg, png, webp, or svg, and must match the image.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "extension": {
+                        "type": "string",
+                        "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]; it may differ from the image's current one."
+                    },
+                    "content": {
+                        "type": "string",
+                        "contentEncoding": "base64"
+                    }
+                },
+                "required": [
+                    "project",
+                    "id",
+                    "extension",
+                    "content"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageReplaceInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "extension": {
+                        "type": "string",
+                        "description": "One of [ImageFormat.ALLOWED_EXTENSIONS]."
+                    },
+                    "inUse": {
+                        "type": "boolean",
+                        "description": "Whether an entry or a text in the project uses the image."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "extension",
+                    "inUse"
+                ],
+                "additionalProperties": false,
+                "x-name": "ImageSummary"
             }
         },
         {

@@ -6,15 +6,15 @@ Hammer-specific import and exports described in hammer-editor's `docs/CLIENT-PLU
 
 | Directory | What |
 | --- | --- |
-| `c/include` | The C kit: `hammer.h`, on top of Extism's `extism-pdk.h` (BSD-3, see `EXTISM-PDK-LICENSE`); `hammer_json.h`, a JSON reader that needs no allocation; `hammer_out.h` for output, `hammer_text.h` for words, `hammer_action.h` for actions' requests and replies (messages, documents, and pages of fields and buttons), `hammer_diagnose.h` for checks underlined in the editor, `hammer_progress` for long actions, and `hammer_test.h` for native unit tests |
+| `c/include` | The C kit: `hammer.h`, on top of Extism's `extism-pdk.h` (BSD-3, see `EXTISM-PDK-LICENSE`); `hammer_json.h`, a JSON reader that needs no allocation; `hammer_out.h` for output, `hammer_text.h` for words, `hammer_image.h` for image references in Markdown, `hammer_action.h` for actions' requests and replies (messages, documents, and pages of fields and buttons), `hammer_diagnose.h` for checks underlined in the editor, `hammer_progress` for long actions, and `hammer_test.h` for native unit tests |
 | `c/build.sh`, `c/test.sh` | Build C plugin directories into packages, and run their native unit tests |
-| `rust/hammer` | The Rust kit: Hammer's imports, operations (typed, in `ops`), and the cache, with serde for JSON; `action` and `diagnose` types, an action's pages among them, `progress`, `http` requests to the hosts the manifest names, byte offsets, an optional `getrandom` backend, and a zeroing allocator for Wizer builds |
+| `rust/hammer` | The Rust kit: Hammer's imports, operations (typed, in `ops`), and the cache, with serde for JSON; `action` and `diagnose` types, an action's pages among them, `progress`, `http` requests to the hosts the manifest names, image references in Markdown (`images`), byte offsets, an optional `getrandom` backend, and a zeroing allocator for Wizer builds |
 | `rust/tools/finish.py` | Makes a module built from crates written for the browser loadable by Hammer: drops wasm-bindgen's leftovers and checks the imports |
-| `kotlin/hammer` | The Kotlin kit: typed requests and replies, an action's pages among them, typed operations (`hammer.ops`), the cache, and for JVM tests a fake Hammer and `ActionDriver`, which runs an action through its pages as Hammer does |
+| `kotlin/hammer` | The Kotlin kit: typed requests and replies, an action's pages among them, typed operations (`hammer.ops`), the cache, image references in Markdown, and for JVM tests a fake Hammer and `ActionDriver`, which runs an action through its pages as Hammer does |
 | `api/operations.json` | Hammer's operations as `ops.list` describes them, from which both kits' typed operations are generated: Kotlin's `hammer.ops` and Rust's `hammer::ops` |
 | `kotlin/codegen` | The generator, with KotlinPoet for Kotlin. `gradle :codegen:updateOperations` refreshes the snapshot from hammer-editor (`tools/dump-operations.sh`) and regenerates; `:codegen:checkOperations` fails when the generated code is out of date |
 | `kotlin/gradle-plugin` | The `com.darkrockstudios.hammer.plugin` Gradle plugin: sets up a plugin project and builds its `.hammerplugin` |
-| `kotlin/hello` | One small example of each kind of plugin, which [RECIPES.md](RECIPES.md) walks through: an export, actions replying with a message, with a document (one with fields and progress, one picking a character), and with two pages carrying state, a text check, and a command |
+| `kotlin/hello` | One small example of each kind of plugin, which [RECIPES.md](RECIPES.md) walks through: an export, actions replying with a message, with a document (one with fields and progress, one picking a character, one listing a scene's images), and with two pages carrying state, a text check, and a command |
 | `tools/package.sh` | Packs a plugin directory and its built module into a `.hammerplugin` |
 | `tools/pack-c.sh` | Packs the C kit into the tarball each release carries |
 
