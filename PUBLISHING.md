@@ -8,7 +8,7 @@ kit for their language.
 
 | Language | What ships | Name | Version |
 | --- | --- | --- | --- |
-| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.6.0, in `kotlin/versions.properties` |
+| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.7.0, in `kotlin/versions.properties` |
 | Kotlin | The Gradle plugin, on Maven Central, which adds the kit at its own version | `com.darkrockstudios.hammer.plugin` (artifact `com.darkrockstudios.hammer:hammer-gradle-plugin`) | The kit's |
 | Rust | The kit crate, on crates.io, whose library is `hammer` | `hammer-plugin-kit` | The SDK's, in `rust/hammer/Cargo.toml` |
 | Rust | `rust/tools/finish.py` | None | None |
@@ -57,7 +57,7 @@ an author adds `mavenCentral()` to `pluginManagement`'s repositories and writes 
 
 ```kotlin
 plugins {
-	id("com.darkrockstudios.hammer.plugin") version "0.6.0"
+	id("com.darkrockstudios.hammer.plugin") version "0.7.0"
 }
 ```
 
@@ -67,7 +67,7 @@ Kotlin version it was tested with, since Hammer is tested against one Kotlin/Was
 ## Rust: crates.io
 
 - **The crate** is published as `hammer-plugin-kit`, matching the Kotlin artifact (`hammer` is taken).
-  Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.6"` and writes
+  Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.7"` and writes
   `use hammer::…`. The `getrandom` feature stays optional. docs.rs builds its documentation.
 - **The build.** A Rust plugin needs the `wasm32-unknown-unknown` target, sometimes `finish.py` and
   Wizer, and then packing. At first these ship in the GitHub release (below). Later, a
