@@ -1,0 +1,26 @@
+# How every kit's words() splits text: each case is the text, a tab, and the words it holds, separated by
+# spaces. \u{...} is a code point. The Kotlin, Rust, and C kits' tests all read this file.
+
+Don't say l'arbre — rock’n’roll! ʼtwas	Don't say l'arbre rock’n’roll ʼtwas
+very every, “Very.”	very every Very
+'quoted' ‘single’ don''t	quoted single don t
+well-known abc123def dogs' 	well known abc def dogs
+  42 — … x×y	x y
+Привет, мир	Привет мир
+naïve café	naïve café
+cafe\u{301} au lait	cafe\u{301} au lait
+\u{301}stray a\u{301}\u{301}b	stray a\u{301}\u{301}b
+हिन्दी भाषा	हिन्दी भाषा
+مَرْحَبًا بِكُم	مَرْحَبًا بِكُم
+می\u{200C}خواهم	می\u{200C}خواهم
+צה״ל	צה״ל
+col·lecció	col·lecció
+co\u{AD}operate \u{200D}a	co\u{AD}operate a
+ภาษาไทย ง่าย	ภาษาไทย ง่าย
+한국어 문장	한국어 문장
+I ❤️ 🐈 cats Ⅻ	I cats Ⅻ
+𐌰𐌱𐌲 𠀀𠀁	𐌰𐌱𐌲 𠀀 𠀁
+我爱北京。你好	我 爱 北 京 你 好
+東京に行きました	東 京 に 行 き ま し た
+コーヒー Tシャツ か\u{3099}	コ ー ヒ ー T シ ャ ツ か\u{3099}
+日本語text	日 本 語 text

@@ -1,8 +1,8 @@
 # Plugin recipes
 
 Hello-world versions of each kind of Hammer plugin, in Kotlin. Every recipe is part of one working
-plugin, [`kotlin/hello`](kotlin/hello), so they build and are tested; copy the parts you need.
-hammer-editor's `docs/CLIENT-PLUGINS.md` has the full rules for each.
+plugin, the SDK's [`kotlin/hello`](kotlin/hello), so they build and are tested; copy the parts you need.
+The [API reference](https://developers.hammer.ink/reference) has the full rules for each.
 
 ## A new plugin
 
@@ -57,9 +57,9 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
 5. Build with `gradle hammerPlugin`, which writes `build/greeter.hammerplugin`, and install it in
    Hammer from Settings, Plugins.
 
-To try a recipe inside this repository instead, add a directory under `kotlin/` next to `hello`, apply
-`id("com.darkrockstudios.hammer.plugin")` without a version, and add it to the `include(...)` in
-`kotlin/settings.gradle.kts`; the kit then comes from this checkout.
+To try a recipe inside a checkout of the SDK instead, add a directory under `kotlin/` next to `hello`,
+apply `id("com.darkrockstudios.hammer.plugin")` without a version, and add it to the `include(...)` in
+`kotlin/settings.gradle.kts`; the kit then comes from the checkout.
 
 A module has one export of each kind (`export`, `action`, `diagnose`, `command`), so a plugin with two
 actions tells them apart by name in its one `action` export. `kotlin/hello`'s
@@ -455,26 +455,20 @@ label = "Very"
 
 ```kotlin
 fun findVery(request: DiagnoseRequest): List<Diagnostic> = request.paragraphs.flatMapIndexed { paragraph, text ->
-	val found = mutableListOf<Diagnostic>()
-	var at = text.indexOf("very", ignoreCase = true)
-	while (at >= 0) {
-		val end = at + 4
-		val word = (at == 0 || !text[at - 1].isLetter()) && (end == text.length || !text[end].isLetter())
-		if (word) {
-			val space = if (end < text.length && text[end] == ' ') 1 else 0
-			found += Diagnostic(paragraph, at, end + space, "“Very” rarely helps", listOf(Fix("", "Remove “very”")))
-		}
-		at = text.indexOf("very", end, ignoreCase = true)
+	text.words().filter { it.text.equals("very", ignoreCase = true) }.map { word ->
+		val end = if (text.getOrNull(word.end) == ' ') word.end + 1 else word.end
+		Diagnostic(paragraph, word.start, end, "“Very” rarely helps", listOf(Fix("", "Remove “very”")))
 	}
-	found
 }
 
 @WasmExport
 fun diagnose(): Int = diagnose(::findVery)
 ```
 
-A fix shows as its replacement unless it has a label, which it needs when the replacement is empty.
-Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so text checks search by hand.
+`words()` splits a paragraph into its words, with each one's `start` and `end`, so "very" inside
+"every" isn't a match. A fix shows as its replacement unless it has a label, which it needs when the
+replacement is empty. Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so search with `words()` and
+`String`'s own functions rather than a `Regex`.
 
 ## A command-line command
 
