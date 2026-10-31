@@ -18,7 +18,8 @@
 //!
 //! An exporter whose manifest entry sets `output = "archive"` returns an [Archive] instead: files that
 //! Hammer zips, in order, into the one export file, whose `extension` and `mime` the manifest still
-//! gives (`zip` and `application/zip`).
+//! gives (`zip` and `application/zip`). An image Hammer sent is named by its id, and Hammer writes its
+//! bytes, so the reply carries none.
 //!
 //! ```ignore
 //! let mut archive = hammer::export::Archive::new();
@@ -129,6 +130,32 @@ struct File {
     text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image: Option<i32>,
+}
+
+/// What [Archive::image] names an image of [Request::images] by: its id, or the [Image] itself.
+pub trait ArchiveImage {
+    /// The image's id.
+    fn id(&self) -> i32;
+}
+
+impl ArchiveImage for i32 {
+    fn id(&self) -> i32 {
+        *self
+    }
+}
+
+impl ArchiveImage for Image {
+    fn id(&self) -> i32 {
+        self.id
+    }
+}
+
+impl<T: ArchiveImage + ?Sized> ArchiveImage for &T {
+    fn id(&self) -> i32 {
+        (**self).id()
+    }
 }
 
 impl Archive {
@@ -139,23 +166,24 @@ impl Archive {
 
     /// Adds `text` as the file at `path`, written as UTF-8.
     pub fn text(&mut self, path: impl Into<String>, text: impl Into<String>) -> crate::Result<&mut Archive> {
-        self.add(File { path: path.into(), text: Some(text.into()), content: None })
+        self.add(File { path: path.into(), text: Some(text.into()), content: None, image: None })
     }
 
     /// Adds `bytes` as the file at `path`.
     pub fn bytes(&mut self, path: impl Into<String>, bytes: &[u8]) -> crate::Result<&mut Archive> {
-        self.add(File { path: path.into(), text: None, content: Some(crate::base64::encode(bytes)) })
+        self.add(File { path: path.into(), text: None, content: Some(crate::base64::encode(bytes)), image: None })
     }
 
     /// Adds the file at `path` whose bytes `encoded` holds as standard padded base64, passed on without
     /// decoding it, for base64 a plugin kept itself; Hammer fails the export when it is not base64.
     pub fn base64(&mut self, path: impl Into<String>, encoded: impl Into<String>) -> crate::Result<&mut Archive> {
-        self.add(File { path: path.into(), text: None, content: Some(encoded.into()) })
+        self.add(File { path: path.into(), text: None, content: Some(encoded.into()), image: None })
     }
 
-    /// Adds `image`'s file at `path`. [Image::content] is already decoded, so this encodes it again.
-    pub fn image(&mut self, path: impl Into<String>, image: &Image) -> crate::Result<&mut Archive> {
-        self.bytes(path, &image.content)
+    /// Adds an image of [Request::images] as the file at `path`, named by its id: `5` or `&image`. Hammer
+    /// writes its bytes, so the reply carries none; an id it did not send fails the export.
+    pub fn image(&mut self, path: impl Into<String>, image: impl ArchiveImage) -> crate::Result<&mut Archive> {
+        self.add(File { path: path.into(), text: None, content: None, image: Some(image.id()) })
     }
 
     /// The `export` export's reply; fails when no file was added.
@@ -335,17 +363,59 @@ mod tests {
     }
 
     #[test]
-    fn an_archive_image_is_its_content_encoded_again() {
-        let request: Request = serde_json::from_value(json!({"format": "book.zip", "projectName": "Storm", "images": [
-            {"id": 5, "name": "Map", "extension": "png", "mimeType": "image/png", "content": "iVBORw0KGgo="},
-        ]}))
-        .unwrap();
-        let image = request.image(5).unwrap();
+    fn an_archive_image_is_its_id_a_json_integer() {
         let mut archive = Archive::new();
-        archive.image("images/5.png", image).unwrap();
-        let reply: Value = serde_json::from_str(&archive.to_json().unwrap()).unwrap();
-        assert_eq!(reply["files"][0]["content"], crate::base64::encode(&image.content));
-        assert_eq!(reply["files"][0], json!({"path": "images/5.png", "content": "iVBORw0KGgo="}));
+        archive.image("images/5.png", 5).unwrap().image("images/0.jpg", 0).unwrap();
+        archive.image("big.gif", i32::MAX).unwrap();
+        assert_eq!(
+            archive.to_json().unwrap(),
+            r#"{"files":[{"path":"images/5.png","image":5},{"path":"images/0.jpg","image":0},"#.to_owned()
+                + r#"{"path":"big.gif","image":2147483647}]}"#
+        );
+    }
+
+    #[test]
+    fn an_archive_image_hammer_sent_is_named_by_its_id() {
+        let request: Request = serde_json::from_value(json!({"format": "book.zip", "projectName": "Storm", "images": [
+            {"id": 2, "name": "Cover", "extension": "jpg", "mimeType": "image/jpeg", "content": "AP8="},
+            {"id": 5, "name": "Map", "extension": "png", "mimeType": "image/png", "content": "iVBORw0KGgo="},
+        ], "coverImageId": 2}))
+        .unwrap();
+        let mut archive = Archive::new();
+        archive.image("images/5.png", request.image(5).unwrap()).unwrap();
+        archive.image("cover.jpg", request.cover().unwrap().clone()).unwrap();
+        for image in &request.images {
+            archive.image(format!("all/{}.{}", image.id, image.extension), image).unwrap();
+        }
+        assert_eq!(
+            archive.to_json().unwrap(),
+            r#"{"files":[{"path":"images/5.png","image":5},{"path":"cover.jpg","image":2},"#.to_owned()
+                + r#"{"path":"all/2.jpg","image":2},{"path":"all/5.png","image":5}]}"#
+        );
+    }
+
+    #[test]
+    fn archive_text_bytes_and_images_keep_their_order() {
+        let mut archive = Archive::new();
+        archive.image("images/5.png", 5).unwrap().text("story.md", "![Map](images/5.png)").unwrap();
+        archive.bytes("data.bin", b"\x01").unwrap().image("cover.jpg", 2).unwrap();
+        archive.base64("notes.txt", "Zg==").unwrap();
+        assert_eq!(
+            archive.to_json().unwrap(),
+            r#"{"files":[{"path":"images/5.png","image":5},{"path":"story.md","text":"![Map](images/5.png)"},"#
+                .to_owned()
+                + r#"{"path":"data.bin","content":"AQ=="},{"path":"cover.jpg","image":2},"#
+                + r#"{"path":"notes.txt","content":"Zg=="}]}"#
+        );
+    }
+
+    #[test]
+    fn an_archive_image_path_is_checked_like_any_other() {
+        let mut archive = Archive::new();
+        archive.text("images/5.png", "a").unwrap();
+        let error = archive.image("images/5.png", 5).err().unwrap();
+        assert_eq!(error.to_string(), "Archive path \"images/5.png\" is already in the archive");
+        assert_eq!(archive.image("/5.png", 5).err().unwrap().to_string(), "Archive path \"/5.png\" starts with /");
     }
 
     #[test]

@@ -1,10 +1,12 @@
 // An archive exporter's reply. For a format whose manifest entry says `output = "archive"`, the `export`
-// export returns {"files": [{"path": "story.md", "text": "..."}, {"path": "images/5.png", "content":
-// "<base64>"}]}, and Hammer zips the files, in order, into the one export file. Include it after hammer.h.
+// export returns {"files": [{"path": "story.md", "text": "..."}, {"path": "images/5.png", "image": 5}]},
+// and Hammer zips the files, in order, into the one export file. A file is text, bytes as base64
+// "content", or an "image": the id of one of the request's "images", whose bytes Hammer writes itself, so
+// the reply carries none. Include it after hammer.h.
 //
 //   HammerArchive archive = {0};
 //   hammer_archive_text(&archive, "story.md", story, story_length);
-//   hammer_archive_base64(&archive, "images/5.png", raw, raw_length); // an export image's "content"
+//   hammer_archive_image(&archive, "images/5.png", 5); // an export image's "id"
 //   uint64_t length;
 //   const char *reply = hammer_archive_finish(&archive, &length);
 //   extism_output_buf(reply, length);
@@ -110,14 +112,22 @@ static inline void hammer_archive_bytes(HammerArchive *archive, const char *path
 }
 
 // Adds the file at path whose bytes `length` characters of standard padded base64 hold, written as they
-// are: a string's raw contents from hammer_json_string, such as an export image's "content". Hammer fails
-// the export when they are not base64.
+// are, for base64 a plugin built or read from a resource. Hammer fails the export when they are not
+// base64.
 static inline void hammer_archive_base64(HammerArchive *archive, const char *path, const char *text,
                                          uint64_t length) {
   hammer_archive_start(archive, path, "content");
   hammer_put_char(&archive->json, '"');
   hammer_put(&archive->json, text, length);
   hammer_put_text(&archive->json, "\"}");
+}
+
+// Adds image `id` of the request's "images" as the file at path. Hammer writes its bytes, so the reply
+// carries none; an id it did not send fails the export.
+static inline void hammer_archive_image(HammerArchive *archive, const char *path, int32_t id) {
+  hammer_archive_start(archive, path, "image");
+  hammer_put_int(&archive->json, id);
+  hammer_put_char(&archive->json, '}');
 }
 
 // Ends the reply, once every file is added, and returns it for extism_output_buf, setting *length; a

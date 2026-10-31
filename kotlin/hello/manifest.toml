@@ -19,6 +19,7 @@ extension = "zip"
 mime = "application/zip"
 label = "Hello (ZIP)"
 output = "archive"
+images = true
 
 [[actions]]
 name = "greet"

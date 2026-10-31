@@ -42,7 +42,17 @@ class ArchiveTest {
 	}
 
 	@Test
-	fun `an image's content is forwarded as Hammer sent it`() {
+	fun `an image is its id, a JSON integer`() {
+		val archive = ExportArchive().image("images/5.png", 5).image("images/0.jpg", 0).image("big.gif", Int.MAX_VALUE)
+		assertEquals(
+			"""{"files":[{"path":"images/5.png","image":5},{"path":"images/0.jpg","image":0},""" +
+				"""{"path":"big.gif","image":2147483647}]}""",
+			archive.toJson(),
+		)
+	}
+
+	@Test
+	fun `an image Hammer sent is named by its id, its bytes left to Hammer`() {
 		val request = json.decodeFromString(
 			ExportRequest.serializer(),
 			"""{"format":"book.zip","projectName":"Storm","images":[""" +
@@ -52,12 +62,42 @@ class ArchiveTest {
 		val map = request.image(5)!!
 		val archive = ExportArchive().image("images/5.png", map).image("cover.jpg", request.cover!!)
 		assertEquals(
-			"""{"files":[{"path":"images/5.png","content":"Zh=="},{"path":"cover.jpg","content":"AP8="}]}""",
+			"""{"files":[{"path":"images/5.png","image":5},{"path":"cover.jpg","image":2}]}""",
 			archive.toJson(),
 		)
 		assertEquals("Zh==", map.base64)
 		assertFailsWith<IllegalArgumentException> { map.content }
 		assertContentEquals(byteArrayOf(0, -1), request.cover!!.content)
+		assertEquals(
+			"""{"files":[{"path":"map.png","content":"Zh=="}]}""",
+			ExportArchive().base64("map.png", map.base64).toJson(),
+		)
+	}
+
+	@Test
+	fun `text, bytes, and images keep their order`() {
+		val archive = ExportArchive()
+			.image("images/5.png", 5)
+			.text("story.md", "![Map](images/5.png)")
+			.bytes("data.bin", byteArrayOf(1))
+			.image("cover.jpg", ExportRequest.Image(2, "Cover", "jpg", "image/jpeg", "AP8="))
+			.base64("notes.txt", "Zg==")
+		assertEquals(
+			"""{"files":[{"path":"images/5.png","image":5},{"path":"story.md","text":"![Map](images/5.png)"},""" +
+				"""{"path":"data.bin","content":"AQ=="},{"path":"cover.jpg","image":2},{"path":"notes.txt","content":"Zg=="}]}""",
+			archive.toJson(),
+		)
+	}
+
+	@Test
+	fun `an image path is checked like any other`() {
+		val archive = ExportArchive().text("images/5.png", "a")
+		val failure = assertFailsWith<IllegalArgumentException> { archive.image("images/5.png", 5) }
+		assertEquals("Archive path \"images/5.png\" is already in the archive", failure.message)
+		assertEquals(
+			"Archive path \"/5.png\" starts with /",
+			assertFailsWith<IllegalArgumentException> { archive.image("/5.png", 5) }.message,
+		)
 	}
 
 	@Test

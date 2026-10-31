@@ -27,9 +27,10 @@
 //           spans: {"text": "...", "italic": true}, with bold, strikethrough, code, and link
 //           likewise left out when unset. hammer_json.h reads either form. Output is the file's
 //           bytes, or with `output = "archive"`, {"files": [{"path": "a.md", "text": "..."},
-//           {"path": "images/5.png", "content": "<base64>"}]}, at least one, which Hammer zips in
-//           order: each has exactly one of text or content, and a unique relative path with `/`
-//           between non-empty segments, none `.` or `..`, and no `\`. hammer_archive.h writes it.
+//           {"path": "b.bin", "content": "<base64>"}, {"path": "images/5.png", "image": 5}]}, at
+//           least one, which Hammer zips in order: each has exactly one of text, content, or image
+//           (the id of one of "images", whose bytes Hammer writes), and a unique relative path with
+//           `/` between non-empty segments, none `.` or `..`, and no `\`. hammer_archive.h writes it.
 //           A format whose manifest entry says `images = true` gets in "images" each project image
 //           the story refers to whose file Hammer could read, sorted by id: {"id": 5, "name":
 //           "Map", "extension": "png", "mimeType": "image/png", "content": "<base64>"}, with

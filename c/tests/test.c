@@ -391,26 +391,42 @@ static void writes_archives(void) {
   HAMMER_CHECK(wrote(&archive.json, "{\"files\":[{\"path\":\"a\",\"content\":\"Zh==\"},{\"path\":\"b\",\"content\":\"Zm8\"},"
                                     "{\"path\":\"c\",\"content\":\"\"}]}"));
 
-  // An export image's content, forwarded as Hammer sent it.
+  // An image is its id, a plain integer, beside text and bytes in the order they were added.
+  archive = (HammerArchive){0};
+  hammer_archive_image(&archive, "images/5.png", 5);
+  hammer_archive_text(&archive, "story.md", "![Map](images/5.png)", 20);
+  hammer_archive_bytes(&archive, "data.bin", png, 1);
+  hammer_archive_image(&archive, "images/0.jpg", 0);
+  hammer_archive_image(&archive, "big.gif", INT32_MAX);
+  hammer_archive_image(&archive, "least.gif", INT32_MIN);
+  hammer_archive_finish(&archive, &length);
+  HAMMER_CHECK(wrote(&archive.json, "{\"files\":[{\"path\":\"images/5.png\",\"image\":5},"
+                                    "{\"path\":\"story.md\",\"text\":\"![Map](images/5.png)\"},"
+                                    "{\"path\":\"data.bin\",\"content\":\"iQ==\"},"
+                                    "{\"path\":\"images/0.jpg\",\"image\":0},"
+                                    "{\"path\":\"big.gif\",\"image\":2147483647},"
+                                    "{\"path\":\"least.gif\",\"image\":-2147483648}]}"));
+
+  // An export image, named by the id Hammer sent.
   static const char request[] =
       "{\"format\":\"book.zip\",\"images\":[{\"id\":5,\"name\":\"Map\",\"extension\":\"png\",\"mimeType\":\"image/png\","
       "\"content\":\"Zh==\"}],\"coverImageId\":null}";
   HammerJson json;
-  const char *key, *raw;
-  uint64_t key_length, raw_length;
+  const char *key;
+  uint64_t key_length;
   archive = (HammerArchive){0};
   HAMMER_CHECK(hammer_json_find(request, strlen(request), "images", &json) && hammer_json_enter_array(&json));
   while (hammer_json_next_item(&json) && hammer_json_enter_object(&json)) {
     while (hammer_json_next_key(&json, &key, &key_length)) {
-      if (hammer_json_key_is(key, key_length, "content") && hammer_json_string(&json, &raw, &raw_length)) {
-        hammer_archive_base64(&archive, "images/5.png", raw, raw_length);
+      if (hammer_json_key_is(key, key_length, "id")) {
+        hammer_archive_image(&archive, "images/5.png", (int32_t)hammer_json_int(&json));
       } else {
         hammer_json_skip(&json);
       }
     }
   }
   hammer_archive_finish(&archive, &length);
-  HAMMER_CHECK(!json.error && wrote(&archive.json, "{\"files\":[{\"path\":\"images/5.png\",\"content\":\"Zh==\"}]}"));
+  HAMMER_CHECK(!json.error && wrote(&archive.json, "{\"files\":[{\"path\":\"images/5.png\",\"image\":5}]}"));
 }
 
 static int path_refused(const char *path, const char *rule) {
