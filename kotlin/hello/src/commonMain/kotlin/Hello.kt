@@ -22,6 +22,7 @@ import hammer.resourceText
 import hammer.settings
 import hammer.state
 import hammer.stateOf
+import hammer.words
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
@@ -177,18 +178,10 @@ private fun ActionRequest.say(english: String, french: String) = if (locale?.sta
 // A text check: underlines each "very", offering to remove it. Kotlin/Wasm's Regex is slow in Hammer's
 // interpreter, so it searches by hand.
 fun findVery(request: DiagnoseRequest): List<Diagnostic> = request.paragraphs.flatMapIndexed { paragraph, text ->
-	val found = mutableListOf<Diagnostic>()
-	var at = text.indexOf("very", ignoreCase = true)
-	while (at >= 0) {
-		val end = at + 4
-		val word = (at == 0 || !text[at - 1].isLetter()) && (end == text.length || !text[end].isLetter())
-		if (word) {
-			val space = if (end < text.length && text[end] == ' ') 1 else 0
-			found += Diagnostic(paragraph, at, end + space, "“Very” rarely helps", listOf(Fix("", "Remove “very”")))
-		}
-		at = text.indexOf("very", end, ignoreCase = true)
+	text.words().filter { it.text.equals("very", ignoreCase = true) }.map { word ->
+		val end = if (text.getOrNull(word.end) == ' ') word.end + 1 else word.end
+		Diagnostic(paragraph, word.start, end, "“Very” rarely helps", listOf(Fix("", "Remove “very”")))
 	}
-	found
 }
 
 // A CLI command: one line of standard output for each line of input.

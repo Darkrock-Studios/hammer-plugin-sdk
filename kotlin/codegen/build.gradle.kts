@@ -4,6 +4,9 @@
 //   gradle :codegen:checkOperations    fail if the generated code is not what the snapshot makes
 // updateOperations takes -Peditor=<hammer-editor checkout> (default ../hammer-editor beside the SDK) and
 // -Prevision=<git revision> (default origin/4.0.0).
+//
+// The kits' word classes, for words(), come from the Unicode Character Database:
+//   gradle :codegen:generateWordClasses [-Punicode=<version>]
 plugins {
 	kotlin("jvm")
 	application
@@ -49,6 +52,36 @@ tasks.register("updateOperations") {
 	group = "operations"
 	description = "Refreshes api/operations.json from hammer-editor, then regenerates both kits' operations."
 	dependsOn(dumpOperations, generateOperations)
+}
+
+val unicodeVersion = providers.gradleProperty("unicode").orElse("17.0.0")
+val ucd = layout.buildDirectory.dir("ucd")
+
+val downloadUnicode by tasks.registering {
+	description = "Downloads the Unicode Character Database files the word classes come from."
+	inputs.property("version", unicodeVersion)
+	outputs.dir(ucd)
+	doLast {
+		for (name in listOf("UnicodeData.txt", "Scripts.txt")) {
+			val url = uri("https://www.unicode.org/Public/${unicodeVersion.get()}/ucd/$name").toURL()
+			url.openStream().use { input -> ucd.get().file(name).asFile.outputStream().use { input.copyTo(it) } }
+		}
+	}
+}
+
+tasks.register<JavaExec>("generateWordClasses") {
+	group = "text"
+	description = "Writes the table each kit's words() splits text with, from Unicode (-Punicode=<version>)."
+	dependsOn(downloadUnicode)
+	classpath = sourceSets.main.get().runtimeClasspath
+	mainClass = "hammer.codegen.WordClassesKt"
+	args(
+		unicodeVersion.get(),
+		ucd.get().asFile,
+		repo.resolve("kotlin/hammer/src/commonMain/kotlin/hammer/WordClasses.kt"),
+		repo.resolve("rust/hammer/src/word_classes.rs"),
+		repo.resolve("c/include/hammer_word_classes.h"),
+	)
 }
 
 val checkDir = layout.buildDirectory.dir("check-operations")
