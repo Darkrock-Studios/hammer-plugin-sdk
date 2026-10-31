@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.intOrNull
 
 /** A request carrying the plugin's settings: each declared setting's current value. */
 interface WithSettings {
@@ -29,17 +30,56 @@ class ExportRequest(
 	override val settings: JsonObject = JsonObject(emptyMap()),
 	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
 	val locale: String? = null,
+	/**
+	 * For a format whose manifest entry sets `images = true`, each project image the story refers to
+	 * whose file Hammer could read, sorted by id, and the cover with `cover = true`; empty otherwise.
+	 */
+	val images: List<Image> = emptyList(),
+	/** The cover's id among [images], with `cover = true`; null when the project has none or it could not be read. */
+	val coverImageId: Int? = null,
 ) : WithSettings {
 	/**
 	 * A chapter's scenes: as markdown in [scenes], or, for a format whose manifest entry sets
-	 * `input = "prose"`, as Hammer's parsed blocks in [prose].
+	 * `input = "prose"`, in [prose] as Hammer's parsed blocks, one list of blocks per scene.
+	 *
+	 * Markdown shows an image as `![image](hammer://image/<id>)`, which [findImageIds] and
+	 * [parseImageReference] read. In prose, with `images = true`, a line holding only an image is a block
+	 * `{"type": "image", "id": 5, "name": "Map"}`, which [proseImageId] reads; without it, the image is
+	 * a paragraph of its name. An image inside a line, or one whose file Hammer could not read, is its
+	 * name as text, never a block.
 	 */
 	@Serializable
 	class Chapter(
 		val name: String,
 		val scenes: List<String> = emptyList(),
-		val prose: List<JsonElement> = emptyList(),
+		val prose: List<List<JsonElement>> = emptyList(),
 	)
+
+	/** A project image and its file: `image.get`'s [hammer.ops.ImageContent] with [mimeType] added. */
+	@Serializable
+	class Image(
+		val id: Int,
+		val name: String,
+		val extension: String,
+		/** The file's media type; `application/octet-stream` when Hammer does not know [extension]. */
+		val mimeType: String,
+		@Serializable(with = Base64Bytes::class)
+		val content: ByteArray,
+	)
+
+	/** The image [id] among [images], or null when it is not there. */
+	fun image(id: Int): Image? = images.firstOrNull { it.id == id }
+
+	/** The cover among [images], or null when there is none. */
+	val cover: Image? get() = coverImageId?.let(::image)
+}
+
+/** The id of a prose `image` block, `{"type": "image", "id": 5, "name": "Map"}`; null for any other block. */
+fun proseImageId(block: JsonElement): Int? {
+	val fields = block as? JsonObject ?: return null
+	val type = fields["type"] as? JsonPrimitive
+	if (type == null || !type.isString || type.content != "image") return null
+	return (fields["id"] as? JsonPrimitive)?.takeUnless { it.isString }?.intOrNull
 }
 
 /** What the `action` export is given: one of the manifest's `[[actions]]`, run from a screen of a project. */

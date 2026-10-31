@@ -15,11 +15,36 @@ pub fn encode(bytes: &[u8]) -> String {
     out
 }
 
+const INVALID: u8 = 0xFF;
+
+/// Each byte's six bits, or [INVALID] for one outside the alphabet.
+const VALUES: [u8; 256] = {
+    let mut values = [INVALID; 256];
+    let mut i = 0;
+    while i < 64 {
+        values[ALPHABET[i] as usize] = i as u8;
+        i += 1;
+    }
+    values
+};
+
+/// The bytes `text` holds, or none for text that is not base64: a byte outside the alphabet, `=` anywhere
+/// but the end, more than two `=` or too few to fill the last group of four, or a last group of one
+/// character. Padding may be left out altogether.
 pub fn decode(text: &str) -> Option<Vec<u8>> {
-    let mut out = Vec::with_capacity(text.len() / 4 * 3);
+    let padded = text.as_bytes();
+    let text = padded.strip_suffix(b"==").or_else(|| padded.strip_suffix(b"=")).unwrap_or(padded);
+    if text.len() % 4 == 1 || (text.len() < padded.len() && padded.len() % 4 != 0) {
+        return None;
+    }
+    let mut out = Vec::with_capacity(text.len() * 3 / 4);
     let (mut n, mut bits) = (0u32, 0);
-    for c in text.bytes().filter(|c| *c != b'=') {
-        n = n << 6 | ALPHABET.iter().position(|a| *a == c)? as u32;
+    for &c in text {
+        let value = VALUES[c as usize];
+        if value == INVALID {
+            return None;
+        }
+        n = n << 6 | value as u32;
         bits += 6;
         if bits >= 8 {
             bits -= 8;
@@ -74,5 +99,44 @@ mod tests {
         }
         assert_eq!(encode(b"foobar"), "Zm9vYmFy");
         assert_eq!(encode(b"fo"), "Zm8=");
+    }
+
+    #[test]
+    fn decodes_padded_and_unpadded() {
+        for (text, bytes) in [
+            ("", &b""[..]),
+            ("Zg==", b"f"),
+            ("Zm8=", b"fo"),
+            ("Zm9v", b"foo"),
+            ("Zm9vYg", b"foob"),
+            ("Zm8", b"fo"),
+            ("iVBORwD/", b"\x89PNG\0\xFF"),
+            ("+/+/", b"\xFB\xFF\xBF"),
+        ] {
+            assert_eq!(decode(text).as_deref(), Some(bytes), "{text}");
+        }
+    }
+
+    #[test]
+    fn refuses_what_is_not_base64() {
+        for text in
+            ["Z", "Zg=", "Zg===", "Zm9vY", "Zm9v=", "Zm9v==", "Z=g=", "Zm 9v", "Zm9v\n", "Zm-_", "=", "==", "Zm\u{e9}"]
+        {
+            assert_eq!(decode(text), None, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn round_trips_pseudo_random_bytes() {
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let bytes: Vec<u8> = (0..4099)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state as u8
+            })
+            .collect();
+        assert_eq!(decode(&encode(&bytes)).unwrap(), bytes);
     }
 }
