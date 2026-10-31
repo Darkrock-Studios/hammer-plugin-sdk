@@ -64,7 +64,7 @@ class ExportRequest(
 		val extension: String,
 		/** The file's media type; `application/octet-stream` when Hammer does not know [extension]. */
 		val mimeType: String,
-		/** The file as Hammer sent it, standard padded base64, which [ExportArchive.image] passes on as it is. */
+		/** The file as Hammer sent it, standard padded base64. */
 		@SerialName("content")
 		val base64: String,
 	) {

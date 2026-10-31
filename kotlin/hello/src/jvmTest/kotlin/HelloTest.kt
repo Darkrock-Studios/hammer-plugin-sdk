@@ -73,13 +73,15 @@ class HelloTest {
 	}
 
 	@Test
-	fun `the archive export holds the greeting and a Markdown file per chapter`() {
+	fun `the archive export holds the greeting, a Markdown file per chapter, and the images by id`() {
 		val chapters = listOf(ExportRequest.Chapter("One", listOf("Rain.", "Wind.")), ExportRequest.Chapter("Calm/After", listOf("Quiet.")))
+		val images = listOf(ExportRequest.Image(2, "Coast", "jpg", "image/jpeg", "AP8="), ExportRequest.Image(5, "Map", "png", "image/png", "iVBORw=="))
 		assertEquals(
 			"""{"files":[{"path":"hello.txt","text":"Ahoy, Storm!\nOne: 2 scenes\nCalm/After: 1 scenes\n"},""" +
 				"""{"path":"chapters/1-One.md","text":"# One\n\nRain.\n\nWind."},""" +
-				"""{"path":"chapters/2-Calm-After.md","text":"# Calm/After\n\nQuiet."}]}""",
-			helloArchive(ExportRequest("hello.zip", "Storm", chapters = chapters, settings = settings)).toJson(),
+				"""{"path":"chapters/2-Calm-After.md","text":"# Calm/After\n\nQuiet."},""" +
+				"""{"path":"images/2.jpg","image":2},{"path":"images/5.png","image":5}]}""",
+			helloArchive(ExportRequest("hello.zip", "Storm", chapters = chapters, settings = settings, images = images)).toJson(),
 		)
 	}
 

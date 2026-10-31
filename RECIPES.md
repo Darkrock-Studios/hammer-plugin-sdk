@@ -159,9 +159,10 @@ and decodes each `content` with `hammer_base64.h`'s `hammer_base64_decode`.
 
 `output = "archive"` on the exporter has Hammer write its file as a ZIP archive: the export returns the
 files to put in it, an `ExportArchive`'s JSON, and Hammer zips them in the order they were added. Each
-file is text, written as UTF-8, or bytes. A path is relative, with `/` between its segments: not empty,
-no leading `/`, no `\`, no empty segment, no `.` or `..` segment, and each path once. `ExportArchive`
-throws, naming the path, when a file breaks one, and when there is no file at all.
+file is text, written as UTF-8, bytes, or an image Hammer sent, named by its id: Hammer writes that
+image's bytes itself, so the plugin sends none back. A path is relative, with `/` between its segments:
+not empty, no leading `/`, no `\`, no empty segment, no `.` or `..` segment, and each path once.
+`ExportArchive` throws, naming the path, when a file breaks one, and when there is no file at all.
 
 ```toml
 [[exporters]]
@@ -170,6 +171,7 @@ extension = "zip"
 mime = "application/zip"
 label = "Hello (ZIP)"
 output = "archive"
+images = true
 ```
 
 ```kotlin
@@ -179,6 +181,8 @@ fun helloArchive(request: ExportRequest): ExportArchive = ExportArchive().apply 
 		val name = chapter.name.replace('/', '-').replace('\\', '-')
 		text("chapters/${i + 1}-$name.md", "# ${chapter.name}\n\n" + chapter.scenes.joinToString("\n\n"))
 	}
+	// Each image is named by its id; Hammer writes its bytes.
+	request.images.forEach { image("images/${it.id}.${it.extension}", it) }
 }
 
 @WasmExport
@@ -191,10 +195,11 @@ fun export(): Int = exporter { request ->
 ```
 
 This one is not part of hello: a Markdown story with its images beside it, from an exporter that also
-sets `images = true` and `cover = true`. `image(path, image)` passes on the base64 Hammer sent without
-decoding it. The story's markdown still names each image `hammer://image/<id>`, so it rewrites each
-destination Hammer writes, `(hammer://image/5)` or `(<hammer://image/5>)`, to the path it chose:
-`findImageIds` lists the ids and `imageReference` builds each reference.
+sets `images = true` and `cover = true`. `image(path, image)` names each image, and the cover, by its
+id, so the reply carries no bytes for them and the plugin holds each image once, in the request. The
+story's markdown still names each image `hammer://image/<id>`, so it rewrites each destination Hammer
+writes, `(hammer://image/5)` or `(<hammer://image/5>)`, to the path it chose: `findImageIds` lists the
+ids and `imageReference` builds each reference.
 
 ```kotlin
 fun storyArchive(request: ExportRequest): ExportArchive {
@@ -213,10 +218,10 @@ fun storyArchive(request: ExportRequest): ExportArchive {
 }
 ```
 
-Rust builds the same reply with `hammer::export::Archive`, whose `image` encodes the decoded
-`Image::content` again, and `base64` passes on text a plugin kept itself. C writes it with
-`hammer_archive.h`, where `hammer_archive_base64` passes on an image's raw `content` from
-`hammer_json_string` as it is.
+Rust builds the same reply with `hammer::export::Archive`, whose `image` takes an id or an `Image`. C
+writes it with `hammer_archive.h`, whose `hammer_archive_image` takes the id. In every kit, `bytes`
+(`hammer_archive_bytes` in C) encodes bytes a plugin made, and `base64` (`hammer_archive_base64`) passes
+on base64 a plugin kept itself as it is.
 
 ## An action with a message
 

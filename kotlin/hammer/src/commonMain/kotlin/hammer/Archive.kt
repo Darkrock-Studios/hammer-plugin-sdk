@@ -9,6 +9,9 @@ import kotlin.io.encoding.Base64
  * manifest still gives (`zip` and `application/zip`). Return `toJson().encodeToByteArray()` from
  * `exporter`.
  *
+ * A file is text, bytes, or one of the request's [ExportRequest.images] named by its id, whose bytes
+ * Hammer writes itself, so forwarding the story's images sends none back.
+ *
  * A path is relative, with `/` between its segments: not empty, not starting with `/`, no `\`, no empty
  * segment (so no `//` or trailing `/`), no `.` or `..` segment, and not a path already added. Adding a
  * file with any other path throws [IllegalArgumentException] naming it, as Hammer would refuse the reply.
@@ -25,12 +28,18 @@ class ExportArchive {
 
 	/**
 	 * Adds the file at [path] whose bytes [encoded] holds as standard padded base64, passed on without
-	 * decoding it; Hammer fails the export when it is not base64.
+	 * decoding it, for base64 a plugin kept itself; Hammer fails the export when it is not base64.
 	 */
 	fun base64(path: String, encoded: String): ExportArchive = add(File(path, content = encoded))
 
-	/** Adds [image]'s file at [path], passing on its [ExportRequest.Image.base64] without decoding it. */
-	fun image(path: String, image: ExportRequest.Image): ExportArchive = base64(path, image.base64)
+	/**
+	 * Adds image [id] of the request's [ExportRequest.images] as the file at [path]. Hammer writes its
+	 * bytes, so the reply carries none; an id it did not send fails the export.
+	 */
+	fun image(path: String, id: Int): ExportArchive = add(File(path, image = id))
+
+	/** Adds [image] as the file at [path], naming it by its id, so Hammer writes its bytes. */
+	fun image(path: String, image: ExportRequest.Image): ExportArchive = image(path, image.id)
 
 	/** The `export` export's reply. Throws [IllegalArgumentException] when no file was added. */
 	fun toJson(): String {
@@ -53,7 +62,7 @@ class ExportArchive {
 	}
 
 	@Serializable
-	private class File(val path: String, val text: String? = null, val content: String? = null)
+	private class File(val path: String, val text: String? = null, val content: String? = null, val image: Int? = null)
 
 	@Serializable
 	private class Reply(val files: List<File>)

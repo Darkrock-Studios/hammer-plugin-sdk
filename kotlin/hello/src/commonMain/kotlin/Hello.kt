@@ -39,14 +39,18 @@ fun helloExport(request: ExportRequest): String {
 	}
 }
 
-// An export format whose file is a ZIP archive: the same greeting, and a Markdown file per chapter.
-// Hammer zips the files; a `/` or `\` in a chapter's name would break its path, so each becomes a `-`.
+// An export format whose file is a ZIP archive: the same greeting, a Markdown file per chapter, and the
+// story's images, though the chapters' image references stay as Hammer wrote them (storyArchive in
+// RECIPES.md rewrites them). Hammer zips the files; a `/` or `\` in a chapter's name would break its
+// path, so each becomes a `-`.
 fun helloArchive(request: ExportRequest): ExportArchive = ExportArchive().apply {
 	text("hello.txt", helloExport(request))
 	request.chapters.forEachIndexed { i, chapter ->
 		val name = chapter.name.replace('/', '-').replace('\\', '-')
 		text("chapters/${i + 1}-$name.md", "# ${chapter.name}\n\n" + chapter.scenes.joinToString("\n\n"))
 	}
+	// Each image is named by its id; Hammer writes its bytes.
+	request.images.forEach { image("images/${it.id}.${it.extension}", it) }
 }
 
 // An action that replies with a message: a line the user sees briefly.
