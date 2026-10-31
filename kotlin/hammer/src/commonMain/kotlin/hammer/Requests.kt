@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.intOrNull
+import kotlin.io.encoding.Base64
 
 /** A request carrying the plugin's settings: each declared setting's current value. */
 interface WithSettings {
@@ -63,9 +64,16 @@ class ExportRequest(
 		val extension: String,
 		/** The file's media type; `application/octet-stream` when Hammer does not know [extension]. */
 		val mimeType: String,
-		@Serializable(with = Base64Bytes::class)
-		val content: ByteArray,
-	)
+		/** The file as Hammer sent it, standard padded base64, which [ExportArchive.image] passes on as it is. */
+		@SerialName("content")
+		val base64: String,
+	) {
+		/**
+		 * The file's bytes, decoded from [base64] when first read, which throws [IllegalArgumentException]
+		 * for text that is not base64.
+		 */
+		val content: ByteArray by lazy { Base64.decode(base64) }
+	}
 
 	/** The image [id] among [images], or null when it is not there. */
 	fun image(id: Int): Image? = images.firstOrNull { it.id == id }

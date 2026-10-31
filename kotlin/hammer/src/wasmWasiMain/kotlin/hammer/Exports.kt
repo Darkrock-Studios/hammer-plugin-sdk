@@ -11,7 +11,10 @@ import kotlinx.serialization.decodeFromString
 //     @WasmExport
 //     fun action(): Int = action { request -> ActionReply.document(report(request.project)) }
 
-/** The `export` export's body: [render] returns the file's bytes. */
+/**
+ * The `export` export's body: [render] returns the file's bytes, or for a format whose manifest entry sets
+ * `output = "archive"`, an [ExportArchive]'s `toJson().encodeToByteArray()`.
+ */
 fun exporter(render: (ExportRequest) -> ByteArray): Int = runBytes { render(json.decodeFromString(inputText())) }
 
 /** The `action` export's body: [handle] returns the reply, or null to end the action without a word. */

@@ -10,8 +10,9 @@
 //
 // The rest of the kit: hammer_json.h reads JSON, hammer_out.h writes output, hammer_text.h finds
 // words in UTF-8 text, hammer_image.h finds image references in Markdown, hammer_base64.h decodes an
-// export's images, hammer_action.h reads an `action` export's request and writes its replies, and
-// hammer_diagnose.h does a `diagnose` export's reading and writing.
+// export's images and encodes bytes, hammer_archive.h writes an archive exporter's reply,
+// hammer_action.h reads an `action` export's request and writes its replies, and hammer_diagnose.h
+// does a `diagnose` export's reading and writing.
 //
 // Exports a plugin can provide. Each is also given "locale": the UI's BCP 47 tag, such as "fr-CA", or
 // null, for replying in the user's language. The manifest's and settings' words are translated by
@@ -25,7 +26,10 @@
 //           of paragraph, blank, image, heading, list, quote, code, rule, or table. Text comes in
 //           spans: {"text": "...", "italic": true}, with bold, strikethrough, code, and link
 //           likewise left out when unset. hammer_json.h reads either form. Output is the file's
-//           bytes.
+//           bytes, or with `output = "archive"`, {"files": [{"path": "a.md", "text": "..."},
+//           {"path": "images/5.png", "content": "<base64>"}]}, at least one, which Hammer zips in
+//           order: each has exactly one of text or content, and a unique relative path with `/`
+//           between non-empty segments, none `.` or `..`, and no `\`. hammer_archive.h writes it.
 //           A format whose manifest entry says `images = true` gets in "images" each project image
 //           the story refers to whose file Hammer could read, sorted by id: {"id": 5, "name":
 //           "Map", "extension": "png", "mimeType": "image/png", "content": "<base64>"}, with

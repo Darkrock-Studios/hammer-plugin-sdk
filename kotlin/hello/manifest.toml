@@ -13,6 +13,13 @@ extension = "txt"
 mime = "text/plain"
 label = "Hello (TXT)"
 
+[[exporters]]
+format = "hello.zip"
+extension = "zip"
+mime = "application/zip"
+label = "Hello (ZIP)"
+output = "archive"
+
 [[actions]]
 name = "greet"
 label = "Say hello"

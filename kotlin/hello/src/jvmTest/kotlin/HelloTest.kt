@@ -73,6 +73,17 @@ class HelloTest {
 	}
 
 	@Test
+	fun `the archive export holds the greeting and a Markdown file per chapter`() {
+		val chapters = listOf(ExportRequest.Chapter("One", listOf("Rain.", "Wind.")), ExportRequest.Chapter("Calm/After", listOf("Quiet.")))
+		assertEquals(
+			"""{"files":[{"path":"hello.txt","text":"Ahoy, Storm!\nOne: 2 scenes\nCalm/After: 1 scenes\n"},""" +
+				"""{"path":"chapters/1-One.md","text":"# One\n\nRain.\n\nWind."},""" +
+				"""{"path":"chapters/2-Calm-After.md","text":"# Calm/After\n\nQuiet."}]}""",
+			helloArchive(ExportRequest("hello.zip", "Storm", chapters = chapters, settings = settings)).toJson(),
+		)
+	}
+
+	@Test
 	fun `the outline follows the scene tree`() {
 		assertEquals("# Storm\n- Part One\n  - Storm\n  - Calm\n", outline(action("outline")).page?.markdown)
 	}

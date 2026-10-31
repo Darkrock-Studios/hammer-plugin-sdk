@@ -4,6 +4,9 @@ description = "Un petit exemple de chaque sorte d’extension, tiré des recette
 [exporters."hello.txt"]
 label = "Bonjour (TXT)"
 
+[exporters."hello.zip"]
+label = "Bonjour (ZIP)"
+
 [actions.greet]
 label = "Dire bonjour"
 
