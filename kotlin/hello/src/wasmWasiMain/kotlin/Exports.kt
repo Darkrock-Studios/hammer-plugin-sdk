@@ -5,7 +5,12 @@ import hammer.exporter
 import kotlin.wasm.WasmExport
 
 @WasmExport
-fun export(): Int = exporter { helloExport(it).encodeToByteArray() }
+fun export(): Int = exporter { request ->
+	when (request.format) {
+		"hello.zip" -> helloArchive(request).toJson()
+		else -> helloExport(request)
+	}.encodeToByteArray()
+}
 
 @WasmExport
 fun action(): Int = action { request ->

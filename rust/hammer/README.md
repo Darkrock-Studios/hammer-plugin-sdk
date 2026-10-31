@@ -22,7 +22,8 @@ for image_id in hammer::images::find_ids(&scene.markdown) {
 }
 ```
 
-`hammer::images` reads the `hammer://image/<id>` references Hammer writes for a project's images.
+`hammer::images` reads the `hammer://image/<id>` references Hammer writes for a project's images, and
+`hammer::export::Archive` writes the reply of an exporter whose files Hammer zips.
 
 Build for `wasm32-unknown-unknown`. The [Rust template](https://github.com/Darkrock-Studios/hammer-plugin-rust)
 is a working plugin to start from, and the

@@ -1,6 +1,6 @@
 // Base64 for Hammer plugins, needing no allocation: the standard alphabet with padding (RFC 4648
-// section 4), as an export's images carry their files. Hammer's base64 has nothing JSON escapes, so a
-// string's raw contents from hammer_json_string decode as they are.
+// section 4), as an export's images and an archive's files carry their bytes. Hammer's base64 has
+// nothing JSON escapes, so a string's raw contents from hammer_json_string decode as they are.
 //
 //   const char *raw; uint64_t raw_length, size;
 //   hammer_json_string(&json, &raw, &raw_length);
@@ -52,6 +52,25 @@ static inline int hammer_base64_decode(const char *text, uint64_t length, unsign
   }
   *size = n;
   return 1;
+}
+
+// How many characters hammer_base64_encode writes for `length` bytes.
+static inline uint64_t hammer_base64_encoded_size(uint64_t length) { return length / 3 * 4 + (length % 3 ? 4 : 0); }
+
+// Encodes `length` bytes as base64 with padding into `out`, which needs hammer_base64_encoded_size(length)
+// characters; no 0 follows them.
+static inline void hammer_base64_encode(const unsigned char *bytes, uint64_t length, char *out) {
+  static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  for (uint64_t i = 0; i < length; i += 3) {
+    uint64_t left = length - i;
+    uint32_t bits = (uint32_t)bytes[i] << 16;
+    if (left > 1) bits |= (uint32_t)bytes[i + 1] << 8;
+    if (left > 2) bits |= bytes[i + 2];
+    *out++ = alphabet[bits >> 18 & 63];
+    *out++ = alphabet[bits >> 12 & 63];
+    *out++ = left > 1 ? alphabet[bits >> 6 & 63] : '=';
+    *out++ = left > 2 ? alphabet[bits & 63] : '=';
+  }
 }
 
 #endif // HAMMER_BASE64_H

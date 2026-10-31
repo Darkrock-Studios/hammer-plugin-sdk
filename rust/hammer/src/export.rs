@@ -15,8 +15,21 @@
 //!     }
 //! }
 //! ```
+//!
+//! An exporter whose manifest entry sets `output = "archive"` returns an [Archive] instead: files that
+//! Hammer zips, in order, into the one export file, whose `extension` and `mime` the manifest still
+//! gives (`zip` and `application/zip`).
+//!
+//! ```ignore
+//! let mut archive = hammer::export::Archive::new();
+//! archive.text("story.md", story)?;
+//! for image in &request.images {
+//!     archive.image(&format!("images/{}.{}", image.id, image.extension), image)?;
+//! }
+//! archive.to_json()
+//! ```
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 #[derive(Deserialize)]
@@ -96,6 +109,95 @@ pub fn prose_image_id(block: &Value) -> Option<i32> {
         return None;
     }
     block.get("id")?.as_i64()?.try_into().ok()
+}
+
+/// What the `export` export returns, as [Archive::to_json], for a format whose manifest entry sets
+/// `output = "archive"`: files Hammer zips in the order they were added.
+///
+/// A path is relative, with `/` between its segments: not empty, not starting with `/`, no `\`, no
+/// empty segment (so no `//` or trailing `/`), no `.` or `..` segment, and not a path already added.
+/// Adding a file with any other path fails, naming it, as Hammer would refuse the reply.
+#[derive(Default)]
+pub struct Archive {
+    files: Vec<File>,
+}
+
+#[derive(Serialize)]
+struct File {
+    path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+}
+
+impl Archive {
+    /// An archive without files.
+    pub fn new() -> Archive {
+        Archive::default()
+    }
+
+    /// Adds `text` as the file at `path`, written as UTF-8.
+    pub fn text(&mut self, path: impl Into<String>, text: impl Into<String>) -> crate::Result<&mut Archive> {
+        self.add(File { path: path.into(), text: Some(text.into()), content: None })
+    }
+
+    /// Adds `bytes` as the file at `path`.
+    pub fn bytes(&mut self, path: impl Into<String>, bytes: &[u8]) -> crate::Result<&mut Archive> {
+        self.add(File { path: path.into(), text: None, content: Some(crate::base64::encode(bytes)) })
+    }
+
+    /// Adds the file at `path` whose bytes `encoded` holds as standard padded base64, passed on without
+    /// decoding it, for base64 a plugin kept itself; Hammer fails the export when it is not base64.
+    pub fn base64(&mut self, path: impl Into<String>, encoded: impl Into<String>) -> crate::Result<&mut Archive> {
+        self.add(File { path: path.into(), text: None, content: Some(encoded.into()) })
+    }
+
+    /// Adds `image`'s file at `path`. [Image::content] is already decoded, so this encodes it again.
+    pub fn image(&mut self, path: impl Into<String>, image: &Image) -> crate::Result<&mut Archive> {
+        self.bytes(path, &image.content)
+    }
+
+    /// The `export` export's reply; fails when no file was added.
+    pub fn to_json(&self) -> crate::Result<String> {
+        if self.files.is_empty() {
+            return Err("An archive needs at least one file".into());
+        }
+        #[derive(Serialize)]
+        struct Reply<'a> {
+            files: &'a [File],
+        }
+        Ok(serde_json::to_string(&Reply { files: &self.files })?)
+    }
+
+    fn add(&mut self, file: File) -> crate::Result<&mut Archive> {
+        if let Some(rule) = self.refuses(&file.path) {
+            return Err(format!("Archive path \"{}\" {rule}", file.path).into());
+        }
+        self.files.push(file);
+        Ok(self)
+    }
+
+    fn refuses(&self, path: &str) -> Option<&'static str> {
+        if path.is_empty() {
+            return Some("is empty");
+        }
+        if path.starts_with('/') {
+            return Some("starts with /");
+        }
+        if path.contains('\\') {
+            return Some("has a backslash");
+        }
+        for segment in path.split('/') {
+            match segment {
+                "" => return Some("has an empty segment"),
+                "." => return Some("has a . segment"),
+                ".." => return Some("has a .. segment"),
+                _ => {}
+            }
+        }
+        self.files.iter().any(|file| file.path == path).then_some("is already in the archive")
+    }
 }
 
 fn english() -> String {
@@ -191,5 +293,108 @@ mod tests {
             assert_eq!(prose_image_id(&block), None, "{block}");
         }
         assert_eq!(prose_image_id(&json!({"name": "Map", "id": 7, "type": "image"})), Some(7));
+    }
+
+    #[test]
+    fn an_archive_lists_its_files_in_order_each_with_text_or_content() {
+        let mut archive = Archive::new();
+        archive.text("story.md", "# One\n\"Rain.\" é").unwrap();
+        archive.bytes("images/1.png", b"\x89PNG").unwrap().base64("cover.jpg", "AP8=").unwrap();
+        assert_eq!(
+            archive.to_json().unwrap(),
+            r##"{"files":[{"path":"story.md","text":"# One\n\"Rain.\" é"},"##.to_owned()
+                + r#"{"path":"images/1.png","content":"iVBORw=="},{"path":"cover.jpg","content":"AP8="}]}"#
+        );
+    }
+
+    #[test]
+    fn archive_bytes_are_standard_base64_with_padding() {
+        let mut archive = Archive::new();
+        for (path, bytes) in [("1", &b"f"[..]), ("2", b"fo"), ("3", b"foo"), ("4", b"\xFB\xFF\xBF"), ("5", b"")] {
+            archive.bytes(path, bytes).unwrap();
+        }
+        let reply: Value = serde_json::from_str(&archive.to_json().unwrap()).unwrap();
+        assert_eq!(
+            reply,
+            json!({"files": [
+                {"path": "1", "content": "Zg=="}, {"path": "2", "content": "Zm8="}, {"path": "3", "content": "Zm9v"},
+                {"path": "4", "content": "+/+/"}, {"path": "5", "content": ""},
+            ]})
+        );
+    }
+
+    #[test]
+    fn archive_base64_is_passed_on_as_it_is() {
+        // Decoding and encoding again would give Zg== and Zm8=.
+        let mut archive = Archive::new();
+        archive.base64("a", "Zh==").unwrap().base64("b", String::from("Zm8")).unwrap();
+        assert_eq!(
+            archive.to_json().unwrap(),
+            r#"{"files":[{"path":"a","content":"Zh=="},{"path":"b","content":"Zm8"}]}"#
+        );
+    }
+
+    #[test]
+    fn an_archive_image_is_its_content_encoded_again() {
+        let request: Request = serde_json::from_value(json!({"format": "book.zip", "projectName": "Storm", "images": [
+            {"id": 5, "name": "Map", "extension": "png", "mimeType": "image/png", "content": "iVBORw0KGgo="},
+        ]}))
+        .unwrap();
+        let image = request.image(5).unwrap();
+        let mut archive = Archive::new();
+        archive.image("images/5.png", image).unwrap();
+        let reply: Value = serde_json::from_str(&archive.to_json().unwrap()).unwrap();
+        assert_eq!(reply["files"][0]["content"], crate::base64::encode(&image.content));
+        assert_eq!(reply["files"][0], json!({"path": "images/5.png", "content": "iVBORw0KGgo="}));
+    }
+
+    #[test]
+    fn each_archive_path_rule_refuses_a_file_naming_its_path() {
+        for (path, rule) in [
+            ("", "is empty"),
+            ("/story.md", "starts with /"),
+            ("images\\1.png", "has a backslash"),
+            ("images//1.png", "has an empty segment"),
+            ("images/", "has an empty segment"),
+            ("./story.md", "has a . segment"),
+            ("images/../story.md", "has a .. segment"),
+            ("images/.", "has a . segment"),
+            (".", "has a . segment"),
+            ("..", "has a .. segment"),
+        ] {
+            let mut archive = Archive::new();
+            let error = archive.text(path, "x").err().unwrap();
+            assert_eq!(error.to_string(), format!("Archive path \"{path}\" {rule}"));
+            assert!(archive.to_json().is_err(), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn an_archive_path_already_added_is_refused() {
+        let mut archive = Archive::new();
+        archive.text("story.md", "a").unwrap();
+        let error = archive.bytes("story.md", b"\x01").err().unwrap();
+        assert_eq!(error.to_string(), "Archive path \"story.md\" is already in the archive");
+        archive.text("Story.md", "b").unwrap().text("a", "c").unwrap().text("ab", "d").unwrap();
+        assert_eq!(archive.text("a", "e").err().unwrap().to_string(), "Archive path \"a\" is already in the archive");
+        assert_eq!(
+            archive.to_json().unwrap(),
+            r#"{"files":[{"path":"story.md","text":"a"},{"path":"Story.md","text":"b"},"#.to_owned()
+                + r#"{"path":"a","text":"c"},{"path":"ab","text":"d"}]}"#
+        );
+    }
+
+    #[test]
+    fn nested_archive_paths_and_dots_inside_a_segment_are_fine() {
+        let mut archive = Archive::new();
+        archive.bytes("images/2026/a b.png", b"\x01").unwrap().text(".hidden/...", "").unwrap();
+        archive.text("a..b/c.d", "").unwrap().text("images/carte été.png", "").unwrap();
+        let paths: Vec<_> = archive.files.iter().map(|file| file.path.as_str()).collect();
+        assert_eq!(paths, ["images/2026/a b.png", ".hidden/...", "a..b/c.d", "images/carte été.png"]);
+    }
+
+    #[test]
+    fn an_archive_without_files_has_no_reply() {
+        assert_eq!(Archive::new().to_json().err().unwrap().to_string(), "An archive needs at least one file");
     }
 }

@@ -155,6 +155,69 @@ hammer-editor's `docs/CLIENT-PLUGINS.md` has the rest. Rust reads the same reque
 `hammer::export::Request`, with `image`, `cover`, and `prose_image_id`; C walks it with `hammer_json.h`
 and decodes each `content` with `hammer_base64.h`'s `hammer_base64_decode`.
 
+### An archive of files
+
+`output = "archive"` on the exporter has Hammer write its file as a ZIP archive: the export returns the
+files to put in it, an `ExportArchive`'s JSON, and Hammer zips them in the order they were added. Each
+file is text, written as UTF-8, or bytes. A path is relative, with `/` between its segments: not empty,
+no leading `/`, no `\`, no empty segment, no `.` or `..` segment, and each path once. `ExportArchive`
+throws, naming the path, when a file breaks one, and when there is no file at all.
+
+```toml
+[[exporters]]
+format = "hello.zip"
+extension = "zip"
+mime = "application/zip"
+label = "Hello (ZIP)"
+output = "archive"
+```
+
+```kotlin
+fun helloArchive(request: ExportRequest): ExportArchive = ExportArchive().apply {
+	text("hello.txt", helloExport(request))
+	request.chapters.forEachIndexed { i, chapter ->
+		val name = chapter.name.replace('/', '-').replace('\\', '-')
+		text("chapters/${i + 1}-$name.md", "# ${chapter.name}\n\n" + chapter.scenes.joinToString("\n\n"))
+	}
+}
+
+@WasmExport
+fun export(): Int = exporter { request ->
+	when (request.format) {
+		"hello.zip" -> helloArchive(request).toJson()
+		else -> helloExport(request)
+	}.encodeToByteArray()
+}
+```
+
+This one is not part of hello: a Markdown story with its images beside it, from an exporter that also
+sets `images = true` and `cover = true`. `image(path, image)` passes on the base64 Hammer sent without
+decoding it. The story's markdown still names each image `hammer://image/<id>`, so it rewrites each
+destination Hammer writes, `(hammer://image/5)` or `(<hammer://image/5>)`, to the path it chose:
+`findImageIds` lists the ids and `imageReference` builds each reference.
+
+```kotlin
+fun storyArchive(request: ExportRequest): ExportArchive {
+	val archive = ExportArchive()
+	val path = { image: ExportRequest.Image -> "images/${image.id}.${image.extension}" }
+	var story = request.chapters.joinToString("\n\n") { "# ${it.name}\n\n" + it.scenes.joinToString("\n\n") }
+	val shown = findImageIds(story).mapNotNull(request::image)
+	shown.forEach {
+		val reference = imageReference(it.id)
+		story = story.replace("(<$reference>)", "(${path(it)})").replace("($reference)", "(${path(it)})")
+	}
+	archive.text("story.md", story)
+	shown.forEach { archive.image(path(it), it) }
+	request.cover?.let { archive.image("cover.${it.extension}", it) }
+	return archive
+}
+```
+
+Rust builds the same reply with `hammer::export::Archive`, whose `image` encodes the decoded
+`Image::content` again, and `base64` passes on text a plugin kept itself. C writes it with
+`hammer_archive.h`, where `hammer_archive_base64` passes on an image's raw `content` from
+`hammer_json_string` as it is.
+
 ## An action with a message
 
 Adds an item to Project Home's menu. Every action replies with an `ActionReply`, and

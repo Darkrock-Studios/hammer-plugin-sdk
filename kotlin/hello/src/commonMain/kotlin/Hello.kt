@@ -9,6 +9,7 @@ import hammer.CommandRequest
 import hammer.DiagnoseRequest
 import hammer.Diagnostic
 import hammer.EntityRef
+import hammer.ExportArchive
 import hammer.ExportRequest
 import hammer.Fix
 import hammer.OperationException
@@ -35,6 +36,16 @@ fun helloExport(request: ExportRequest): String {
 	return buildString {
 		appendLine("$greeting, ${request.projectName}!")
 		request.chapters.forEach { appendLine("${it.name}: ${it.scenes.size} scenes") }
+	}
+}
+
+// An export format whose file is a ZIP archive: the same greeting, and a Markdown file per chapter.
+// Hammer zips the files; a `/` or `\` in a chapter's name would break its path, so each becomes a `-`.
+fun helloArchive(request: ExportRequest): ExportArchive = ExportArchive().apply {
+	text("hello.txt", helloExport(request))
+	request.chapters.forEachIndexed { i, chapter ->
+		val name = chapter.name.replace('/', '-').replace('\\', '-')
+		text("chapters/${i + 1}-$name.md", "# ${chapter.name}\n\n" + chapter.scenes.joinToString("\n\n"))
 	}
 }
 

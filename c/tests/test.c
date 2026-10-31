@@ -2,6 +2,7 @@
 #define HAMMER_IMPLEMENTATION
 #include "hammer.h"
 #include "hammer_action.h"
+#include "hammer_archive.h"
 #include "hammer_base64.h"
 #include "hammer_image.h"
 #include "hammer_text.h"
@@ -330,6 +331,125 @@ static void reads_export_images(void) {
   HAMMER_CHECK(!hammer_json_next_item(&json) && !json.error);
 }
 
+// What hammer_base64_encode makes of `length` bytes; the result lives until the next call.
+static const char *encoded(const char *bytes, uint64_t length) {
+  static char out[64];
+  hammer_base64_encode((const unsigned char *)bytes, length, out);
+  out[hammer_base64_encoded_size(length)] = 0;
+  return out;
+}
+
+static int encodes_to(const char *bytes, const char *expected) {
+  uint64_t length = strlen(bytes), size;
+  const char *text = encoded(bytes, length);
+  unsigned char back[64];
+  if (strcmp(text, expected) != 0 || hammer_base64_encoded_size(length) != strlen(expected)) return 0;
+  return hammer_base64_decode(text, strlen(text), back, &size) && size == length && memcmp(back, bytes, length) == 0;
+}
+
+static void encodes_base64(void) {
+  HAMMER_CHECK(encodes_to("", ""));
+  HAMMER_CHECK(encodes_to("f", "Zg=="));
+  HAMMER_CHECK(encodes_to("fo", "Zm8="));
+  HAMMER_CHECK(encodes_to("foo", "Zm9v"));
+  HAMMER_CHECK(encodes_to("foob", "Zm9vYg=="));
+  HAMMER_CHECK(encodes_to("fooba", "Zm9vYmE="));
+  HAMMER_CHECK(encodes_to("foobar", "Zm9vYmFy"));
+  HAMMER_CHECK(strcmp(encoded("\xFB\xFF\xBF", 3), "+/+/") == 0);
+  HAMMER_CHECK(strcmp(encoded("\x89PNG\0\xFF", 6), "iVBORwD/") == 0);
+
+  unsigned char bytes[256], back[256];
+  char text[344];
+  uint64_t size;
+  for (int i = 0; i < 256; i++) bytes[i] = (unsigned char)(255 - i);
+  HAMMER_CHECK(hammer_base64_encoded_size(sizeof bytes) == sizeof text);
+  hammer_base64_encode(bytes, sizeof bytes, text);
+  HAMMER_CHECK(hammer_base64_decode(text, sizeof text, back, &size) && size == 256 && memcmp(back, bytes, 256) == 0);
+}
+
+static void writes_archives(void) {
+  HammerArchive archive = {0};
+  static const char story[] = "# One\n\"Rain.\" \xc3\xa9";
+  static const unsigned char png[] = {0x89, 'P', 'N', 'G'};
+  hammer_archive_text(&archive, "story.md", story, strlen(story));
+  hammer_archive_bytes(&archive, "images/1.png", png, sizeof png);
+  hammer_archive_base64(&archive, "cover.jpg", "AP8=", 4);
+  uint64_t length;
+  const char *reply = hammer_archive_finish(&archive, &length);
+  HAMMER_CHECK(reply == archive.json.data && length == archive.json.length);
+  HAMMER_CHECK(hammer_archive_finish(&archive, &length) == reply && length == archive.json.length);
+  HAMMER_CHECK(wrote(&archive.json, "{\"files\":[{\"path\":\"story.md\",\"text\":\"# One\\u000a\\\"Rain.\\\" \xc3\xa9\"},"
+                                    "{\"path\":\"images/1.png\",\"content\":\"iVBORw==\"},"
+                                    "{\"path\":\"cover.jpg\",\"content\":\"AP8=\"}]}"));
+
+  // Decoding and encoding again would give Zg== and Zm8=.
+  archive = (HammerArchive){0};
+  hammer_archive_base64(&archive, "a", "Zh==", 4);
+  hammer_archive_base64(&archive, "b", "Zm8", 3);
+  hammer_archive_bytes(&archive, "c", png, 0);
+  hammer_archive_finish(&archive, &length);
+  HAMMER_CHECK(wrote(&archive.json, "{\"files\":[{\"path\":\"a\",\"content\":\"Zh==\"},{\"path\":\"b\",\"content\":\"Zm8\"},"
+                                    "{\"path\":\"c\",\"content\":\"\"}]}"));
+
+  // An export image's content, forwarded as Hammer sent it.
+  static const char request[] =
+      "{\"format\":\"book.zip\",\"images\":[{\"id\":5,\"name\":\"Map\",\"extension\":\"png\",\"mimeType\":\"image/png\","
+      "\"content\":\"Zh==\"}],\"coverImageId\":null}";
+  HammerJson json;
+  const char *key, *raw;
+  uint64_t key_length, raw_length;
+  archive = (HammerArchive){0};
+  HAMMER_CHECK(hammer_json_find(request, strlen(request), "images", &json) && hammer_json_enter_array(&json));
+  while (hammer_json_next_item(&json) && hammer_json_enter_object(&json)) {
+    while (hammer_json_next_key(&json, &key, &key_length)) {
+      if (hammer_json_key_is(key, key_length, "content") && hammer_json_string(&json, &raw, &raw_length)) {
+        hammer_archive_base64(&archive, "images/5.png", raw, raw_length);
+      } else {
+        hammer_json_skip(&json);
+      }
+    }
+  }
+  hammer_archive_finish(&archive, &length);
+  HAMMER_CHECK(!json.error && wrote(&archive.json, "{\"files\":[{\"path\":\"images/5.png\",\"content\":\"Zh==\"}]}"));
+}
+
+static int path_refused(const char *path, const char *rule) {
+  const char *error = hammer_archive_path_error(path, strlen(path));
+  return error && strcmp(error, rule) == 0;
+}
+
+static void checks_archive_paths(void) {
+  HAMMER_CHECK(path_refused("", "is empty"));
+  HAMMER_CHECK(path_refused("/story.md", "starts with /"));
+  HAMMER_CHECK(path_refused("images\\1.png", "has a backslash"));
+  HAMMER_CHECK(path_refused("images//1.png", "has an empty segment"));
+  HAMMER_CHECK(path_refused("images/", "has an empty segment"));
+  HAMMER_CHECK(path_refused("./story.md", "has a . segment"));
+  HAMMER_CHECK(path_refused("images/../story.md", "has a .. segment"));
+  HAMMER_CHECK(path_refused("images/.", "has a . segment"));
+  HAMMER_CHECK(path_refused(".", "has a . segment"));
+  HAMMER_CHECK(path_refused("..", "has a .. segment"));
+  static const char *const fine[] = {"story.md", "images/2026/a b.png", ".hidden/...", "a..b/c.d",
+                                     "images/carte \xc3\xa9t\xc3\xa9.png"};
+  for (size_t i = 0; i < sizeof fine / sizeof *fine; i++) {
+    HAMMER_CHECK(!hammer_archive_path_error(fine[i], strlen(fine[i])));
+  }
+
+  HammerArchive archive = {0};
+  HAMMER_CHECK(!hammer_archive_has(&archive, "story.md", 8));
+  hammer_archive_text(&archive, "story.md", "a", 1);
+  hammer_archive_text(&archive, "images/2026/a b.png", "b", 1);
+  HAMMER_CHECK(hammer_archive_has(&archive, "story.md", 8));
+  HAMMER_CHECK(hammer_archive_has(&archive, "images/2026/a b.png", 19));
+  HAMMER_CHECK(!hammer_archive_has(&archive, "Story.md", 8));
+  HAMMER_CHECK(!hammer_archive_has(&archive, "story.m", 7));
+  HAMMER_CHECK(!hammer_archive_has(&archive, "story.mdx", 9));
+  hammer_archive_text(&archive, "a", "c", 1);
+  HAMMER_CHECK(!hammer_archive_has(&archive, "ab", 2));
+  hammer_archive_text(&archive, "ab", "d", 1);
+  HAMMER_CHECK(hammer_archive_has(&archive, "a", 1) && hammer_archive_has(&archive, "ab", 2));
+}
+
 // Writes s, with each \u{...} replaced by its code point's UTF-8, to out; returns how many bytes it wrote.
 static size_t unescape(const char *s, size_t n, char *out) {
   size_t length = 0;
@@ -383,6 +503,9 @@ int main(void) {
   reads_image_references();
   decodes_base64();
   reads_export_images();
+  encodes_base64();
+  writes_archives();
+  checks_archive_paths();
   splits_words();
   return hammer_test_summary();
 }
