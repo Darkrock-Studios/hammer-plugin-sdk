@@ -6,6 +6,7 @@ import hammer.DiagnoseRequest
 import hammer.EntityRef
 import hammer.ExportRequest
 import hammer.FakeHammerHost
+import hammer.OperationException
 import hammer.diagnoseReply
 import hammer.host
 import kotlin.test.Test
@@ -38,7 +39,16 @@ class HelloTest {
 				}
 			},
 			"scene.read" to { input ->
-				buildJsonObject { put("markdown", if (input["id"]!!.jsonPrimitive.int == 2) "Rain fell hard." else "Quiet.") }
+				val markdown = when (input["id"]!!.jsonPrimitive.int) {
+					2 -> "Rain fell hard."
+					4 -> "![image](hammer://image/5)\n\nThe coast, ![image](<hammer://image/5>) and ![image](hammer://image/6)."
+					else -> "Quiet."
+				}
+				buildJsonObject { put("markdown", markdown) }
+			},
+			"image.get" to { input ->
+				if (input["id"]!!.jsonPrimitive.int != 5) throw OperationException("NotFound", "No image")
+				buildJsonObject { put("id", 5); put("name", "Map"); put("extension", "png"); put("content", "AP8=") }
 			},
 			"entry.read" to { input ->
 				buildJsonObject {
@@ -83,6 +93,13 @@ class HelloTest {
 		assertEquals(setOf("who"), about.errors.keys)
 		about.fill("who", EntityRef("entry", 12)).run()
 		assertEquals("# Mara\nAlso known as The Captain.\nIn 2 scenes.\n", about.page?.markdown)
+	}
+
+	@Test
+	fun `scene images lists each image the scene shows once`() {
+		val images = driver("images", ::sceneImages, place = "scene", id = 4).open()
+		assertEquals("# Images\n- Map.png: 2 bytes\n- Image 6: not in the project\n", images.page?.markdown)
+		assertEquals("No images in this scene", sceneImages(ActionRequest("images", "Storm", context = ActionRequest.Context("scene", 3))).message)
 	}
 
 	@Test

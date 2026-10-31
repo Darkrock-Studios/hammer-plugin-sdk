@@ -1,4 +1,4 @@
-//! Binary content, such as an exported file or an entry's image, which operations carry as base64 text.
+//! Binary content, such as an exported file or an image, which operations carry as base64 text.
 
 use serde::{Deserialize, Deserializer, Serializer};
 

@@ -51,6 +51,11 @@ public object Hammer {
 	public val idea: IdeaOperations = IdeaOperations
 
 	/**
+	 * The `image` operations.
+	 */
+	public val image: ImageOperations = ImageOperations
+
+	/**
 	 * The `note` operations.
 	 */
 	public val note: NoteOperations = NoteOperations
@@ -59,6 +64,11 @@ public object Hammer {
 	 * The `ops` operations.
 	 */
 	public val ops: OpsOperations = OpsOperations
+
+	/**
+	 * The `plugin` operations.
+	 */
+	public val plugin: PluginOperations = PluginOperations
 
 	/**
 	 * The `project` operations.
@@ -108,30 +118,6 @@ public object Hammer {
 
 public object AccountOperations {
 	/**
-	 * Log in to a sync server with an existing account. Accounts are created in the app.
-	 *
-	 * Needs `account.login` or `account:write` in the manifest's `[permissions]`.
-	 * @param url The server's address, with `https://` or `http://` optional.
-	 */
-	public fun login(
-		url: String,
-		email: String,
-		password: String,
-	): AccountStatus = operation("account.login", buildJsonObject {
-		put("url", operationValue(url))
-		put("email", operationValue(email))
-		put("password", operationValue(password))
-	})
-
-	/**
-	 * Forget the sync server and every project's sync state for it, as removing the server in Settings does.
-	 *
-	 * Needs `account.logout` or `account:write` in the manifest's `[permissions]`.
-	 */
-	public fun logout(): AccountStatus = operation("account.logout", buildJsonObject {
-	})
-
-	/**
 	 * The sync server and account this install uses, and optionally whether the server still accepts it.
 	 *
 	 * Needs `account.status` or `account:read` in the manifest's `[permissions]`.
@@ -168,7 +154,7 @@ public object DraftOperations {
 	/**
 	 * Replace a scene's text with one of its drafts, saving the replaced text as a draft first.
 	 *
-	 * Needs `draft.apply` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `draft.apply` or `content:prose` in the manifest's `[permissions]`.
 	 */
 	public fun apply(project: String, id: Int): DraftApplied = operation("draft.apply", buildJsonObject {
 		put("project", operationValue(project))
@@ -223,9 +209,9 @@ public object DraftOperations {
 
 public object EntryOperations {
 	/**
-	 * The `entry.image` operations.
+	 * The `entry.images` operations.
 	 */
-	public val image: EntryImageOperations = EntryImageOperations
+	public val images: EntryImagesOperations = EntryImagesOperations
 
 	/**
 	 * Add an encyclopedia entry to a project.
@@ -250,7 +236,7 @@ public object EntryOperations {
 	})
 
 	/**
-	 * Delete an encyclopedia entry, and its image, for good.
+	 * Delete an encyclopedia entry for good. Its images stay in the project.
 	 *
 	 * Needs `entry.delete` (by name) in the manifest's `[permissions]`.
 	 */
@@ -306,43 +292,82 @@ public object EntryOperations {
 	})
 }
 
-public object EntryImageOperations {
+public object EntryImagesOperations {
 	/**
-	 * An encyclopedia entry's image.
+	 * Add an image already in the project to the end of an encyclopedia entry's images.
 	 *
-	 * Needs `entry.image.get` or `content:read` in the manifest's `[permissions]`.
+	 * Needs `entry.images.add` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
 	 */
-	public fun `get`(project: String, id: Int): EntryImage = operation("entry.image.get", buildJsonObject {
+	public fun add(
+		project: String,
+		id: Int,
+		imageId: Int,
+	): EntryImages = operation("entry.images.add", buildJsonObject {
 		put("project", operationValue(project))
 		put("id", operationValue(id))
+		put("imageId", operationValue(imageId))
 	})
 
 	/**
-	 * Remove an encyclopedia entry's image.
+	 * Add a new image to the project, named after an encyclopedia entry, and to the end of the entry's images. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
 	 *
-	 * Needs `entry.image.remove` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `entry.images.import` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
+	 * @param extension One of [ImageFormat.ALLOWED_EXTENSIONS].
 	 */
-	public fun remove(project: String, id: Int): Entry = operation("entry.image.remove", buildJsonObject {
-		put("project", operationValue(project))
-		put("id", operationValue(id))
-	})
-
-	/**
-	 * Set an encyclopedia entry's image, replacing any it has. The extension is jpg, jpeg, png, or webp, and must match the image.
-	 *
-	 * Needs `entry.image.set` or `content:write` in the manifest's `[permissions]`.
-	 * @param extension jpg, jpeg, png, or webp.
-	 */
-	public fun `set`(
+	public fun `import`(
 		project: String,
 		id: Int,
 		extension: String,
 		content: ByteArray,
-	): Entry = operation("entry.image.set", buildJsonObject {
+	): EntryImages = operation("entry.images.import", buildJsonObject {
 		put("project", operationValue(project))
 		put("id", operationValue(id))
 		put("extension", operationValue(extension))
 		put("content", operationValue(content, Base64Bytes))
+	})
+
+	/**
+	 * The images an encyclopedia entry shows, primary first.
+	 *
+	 * Needs `entry.images.list` or `content:read` in the manifest's `[permissions]`.
+	 */
+	public fun list(project: String, id: Int): EntryImages = operation("entry.images.list", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+	})
+
+	/**
+	 * Make one of an encyclopedia entry's images its primary image, moving it first.
+	 *
+	 * Needs `entry.images.primary` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
+	 */
+	public fun primary(
+		project: String,
+		id: Int,
+		imageId: Int,
+	): EntryImages = operation("entry.images.primary", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("imageId", operationValue(imageId))
+	})
+
+	/**
+	 * Take an image off an encyclopedia entry. The image stays in the project.
+	 *
+	 * Needs `entry.images.remove` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The entry.
+	 */
+	public fun remove(
+		project: String,
+		id: Int,
+		imageId: Int,
+	): EntryImages = operation("entry.images.remove", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("imageId", operationValue(imageId))
 	})
 }
 
@@ -428,6 +453,89 @@ public object IdeaOperations {
 	})
 }
 
+public object ImageOperations {
+	/**
+	 * Add an image to a project. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
+	 *
+	 * Needs `image.add` or `content:write` in the manifest's `[permissions]`.
+	 * @param extension One of [ImageFormat.ALLOWED_EXTENSIONS].
+	 */
+	public fun add(
+		project: String,
+		name: String,
+		extension: String,
+		content: ByteArray,
+	): ImageSummary = operation("image.add", buildJsonObject {
+		put("project", operationValue(project))
+		put("name", operationValue(name))
+		put("extension", operationValue(extension))
+		put("content", operationValue(content, Base64Bytes))
+	})
+
+	/**
+	 * Delete an image for good, first taking it out of every entry and text that uses it, and the project cover.
+	 *
+	 * Needs `image.delete` (by name) in the manifest's `[permissions]`.
+	 */
+	public fun delete(project: String, id: Int): ImageDeleted = operation("image.delete", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+	})
+
+	/**
+	 * One image's name, extension, and bytes.
+	 *
+	 * Needs `image.get` or `content:read` in the manifest's `[permissions]`.
+	 */
+	public fun `get`(project: String, id: Int): ImageContent = operation("image.get", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+	})
+
+	/**
+	 * A project's images, with whether anything in the project uses each one.
+	 *
+	 * Needs `image.list` or `content:read` in the manifest's `[permissions]`.
+	 * @param project The project's name, or its server project id.
+	 */
+	public fun list(project: String): Images = operation("image.list", buildJsonObject {
+		put("project", operationValue(project))
+	})
+
+	/**
+	 * Rename an image.
+	 *
+	 * Needs `image.rename` or `content:write` in the manifest's `[permissions]`.
+	 */
+	public fun rename(
+		project: String,
+		id: Int,
+		name: String,
+	): ImageSummary = operation("image.rename", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("name", operationValue(name))
+	})
+
+	/**
+	 * Replace an image's bytes, keeping its id, so everything that uses it shows the new image. The extension is jpg, jpeg, png, webp, or svg, and must match the image.
+	 *
+	 * Needs `image.replace` or `content:write` in the manifest's `[permissions]`.
+	 * @param extension One of [ImageFormat.ALLOWED_EXTENSIONS]; it may differ from the image's current one.
+	 */
+	public fun replace(
+		project: String,
+		id: Int,
+		extension: String,
+		content: ByteArray,
+	): ImageSummary = operation("image.replace", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		put("extension", operationValue(extension))
+		put("content", operationValue(content, Base64Bytes))
+	})
+}
+
 public object NoteOperations {
 	/**
 	 * Add a note to a project.
@@ -503,6 +611,16 @@ public object OpsOperations {
 	})
 }
 
+public object PluginOperations {
+	/**
+	 * The installed runtime plugins, and what each may use.
+	 *
+	 * Needs `plugin.list` or `plugins:read` in the manifest's `[permissions]`.
+	 */
+	public fun list(): PluginList = operation("plugin.list", buildJsonObject {
+	})
+}
+
 public object ProjectOperations {
 	/**
 	 * Create an empty project.
@@ -545,7 +663,7 @@ public object ProjectOperations {
 	/**
 	 * Create a project from a Markdown or RTF manuscript, split into scenes by its headings or a chapter pattern.
 	 *
-	 * Needs `project.import` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `project.import` or `content:prose` in the manifest's `[permissions]`.
 	 * @param name Left out, the title the file gives itself.
 	 * @param chapterPattern A regular expression for the lines that start a chapter; left out, chapter, part, prologue, and epilogue.
 	 * @param chapterGroups Put each chapter's scenes in a group.
@@ -616,7 +734,7 @@ public object SceneOperations {
 	/**
 	 * Add markdown to the end of a scene's text, as a new paragraph.
 	 *
-	 * Needs `scene.append` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `scene.append` or `content:prose` in the manifest's `[permissions]`.
 	 */
 	public fun append(
 		project: String,
@@ -745,7 +863,7 @@ public object SceneOperations {
 	/**
 	 * Replace a scene's text with markdown. Mode draft saves it as a new draft of the scene and leaves the scene alone. Mode live replaces the scene's text, saving the old text as a draft first.
 	 *
-	 * Needs `scene.write` or `content:write` in the manifest's `[permissions]`.
+	 * Needs `scene.write` or `content:prose` in the manifest's `[permissions]`.
 	 * @param draftName The new draft's name, in draft mode only.
 	 */
 	public fun write(
@@ -886,17 +1004,6 @@ public object StatsOperations {
 }
 
 public object SyncOperations {
-	/**
-	 * Sync the account and every linked project with the server, as Sync all does. A project with a conflict is left for the app.
-	 *
-	 * Needs `sync.run` or `account:write` in the manifest's `[permissions]`.
-	 * @param project Sync only this project; account changes and ideas still sync.
-	 */
-	public fun run(project: String? = null, onConflict: ConflictChoice? = null): SyncRunResult = operation("sync.run", buildJsonObject {
-		if (project != null) put("project", operationValue(project))
-		if (onConflict != null) put("onConflict", operationValue(onConflict))
-	})
-
 	/**
 	 * Each project's link to the sync server, its last sync, and how many of its changes are waiting to sync.
 	 *

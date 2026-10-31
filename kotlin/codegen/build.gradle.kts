@@ -3,7 +3,7 @@
 //   gradle :codegen:generateOperations generate from the snapshot as it is
 //   gradle :codegen:checkOperations    fail if the generated code is not what the snapshot makes
 // updateOperations takes -Peditor=<hammer-editor checkout> (default ../hammer-editor beside the SDK) and
-// -Prevision=<git revision> (default origin/plugin-architecture).
+// -Prevision=<git revision> (default origin/4.0.0).
 //
 // The kits' word classes, for words(), come from the Unicode Character Database:
 //   gradle :codegen:generateWordClasses [-Punicode=<version>]
@@ -35,7 +35,7 @@ val dumpOperations by tasks.registering(Exec::class) {
 	group = "operations"
 	description = "Refreshes api/operations.json from hammer-editor's operation registry."
 	val editor = providers.gradleProperty("editor").orElse(repo.resolveSibling("hammer-editor").path)
-	val revision = providers.gradleProperty("revision").orElse("origin/plugin-architecture")
+	val revision = providers.gradleProperty("revision").orElse("origin/4.0.0")
 	commandLine("sh", repo.resolve("tools/dump-operations.sh"), editor.get(), revision.get())
 }
 

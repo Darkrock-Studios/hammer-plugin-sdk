@@ -45,7 +45,7 @@ abstract class OperationEnumSerializer<E : Enum<E>>(
 	}
 }
 
-/** Binary content, such as an exported file or an entry's image, which operations carry as base64 text. */
+/** Binary content, such as an exported file or an image, which operations carry as base64 text. */
 object Base64Bytes : KSerializer<ByteArray> {
 	override val descriptor = PrimitiveSerialDescriptor("hammer.Base64Bytes", PrimitiveKind.STRING)
 

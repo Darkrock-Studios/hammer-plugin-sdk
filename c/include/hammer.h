@@ -9,8 +9,9 @@
 // memory, hammer_fail, resources, and what builds on them are there: no operations or cache.
 //
 // The rest of the kit: hammer_json.h reads JSON, hammer_out.h writes output, hammer_text.h finds
-// words in UTF-8 text, hammer_action.h reads an `action` export's request and writes its replies, and
-// hammer_diagnose.h does a `diagnose` export's reading and writing.
+// words in UTF-8 text, hammer_image.h finds image references in Markdown, hammer_action.h reads an
+// `action` export's request and writes its replies, and hammer_diagnose.h does a `diagnose` export's
+// reading and writing.
 //
 // Exports a plugin can provide. Each is also given "locale": the UI's BCP 47 tag, such as "fr-CA", or
 // null, for replying in the user's language. The manifest's and settings' words are translated by

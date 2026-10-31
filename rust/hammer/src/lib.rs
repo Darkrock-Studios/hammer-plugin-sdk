@@ -24,6 +24,7 @@ pub mod action;
 pub mod base64;
 pub mod diagnose;
 pub mod http;
+pub mod images;
 pub mod ops;
 #[cfg(test)]
 mod ops_tests;
