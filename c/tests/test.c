@@ -2,6 +2,7 @@
 #define HAMMER_IMPLEMENTATION
 #include "hammer.h"
 #include "hammer_action.h"
+#include "hammer_base64.h"
 #include "hammer_image.h"
 #include "hammer_text.h"
 #include "hammer_test.h"
@@ -212,6 +213,123 @@ static void reads_image_references(void) {
   HAMMER_CHECK(hammer_next_image_id(short_text, &past) == -1 && past == short_text.length);
 }
 
+// What hammer_base64_decode makes of text, or 0 when it refuses it; the result lives until the next call.
+static const char *base64(const char *text) {
+  static unsigned char out[64];
+  uint64_t size;
+  if (hammer_base64_size(strlen(text)) >= sizeof out || !hammer_base64_decode(text, strlen(text), out, &size)) return 0;
+  out[size] = 0;
+  return (const char *)out;
+}
+
+static int base64_is(const char *text, const char *expected) {
+  const char *decoded = base64(text);
+  return decoded && strcmp(decoded, expected) == 0;
+}
+
+static void decodes_base64(void) {
+  HAMMER_CHECK(base64_is("", ""));
+  HAMMER_CHECK(base64_is("Zg==", "f"));
+  HAMMER_CHECK(base64_is("Zm8=", "fo"));
+  HAMMER_CHECK(base64_is("Zm9v", "foo"));
+  HAMMER_CHECK(base64_is("Zm9vYg==", "foob"));
+  HAMMER_CHECK(base64_is("Zm9vYmE=", "fooba"));
+  HAMMER_CHECK(base64_is("Zm9vYmFy", "foobar"));
+  HAMMER_CHECK(base64_is("Zm8", "fo"));
+  static const char *const refused[] = {"Z", "Zg=", "Zg===", "Zm9vY", "Zm9v=", "Zm9v==", "Z=g=", "Zm 9v", "Zm9v\n",
+                                        "Zm-_", "=", "=="};
+  for (size_t i = 0; i < sizeof refused / sizeof *refused; i++) HAMMER_CHECK(!base64(refused[i]));
+
+  static const unsigned char png[] = {0x89, 'P', 'N', 'G', 0, 0xFF};
+  unsigned char out[8];
+  uint64_t size;
+  HAMMER_CHECK(hammer_base64_decode("iVBORwD/", 8, out, &size) && size == 6 && memcmp(out, png, 6) == 0);
+  HAMMER_CHECK(hammer_base64_decode("+/+/", 4, out, &size) && size == 3 && out[0] == 0xFB && out[1] == 0xFF &&
+               out[2] == 0xBF);
+
+  char text[] = "aGFtbWVyIHBsdWdpbg==";
+  HAMMER_CHECK(hammer_base64_decode(text, strlen(text), (unsigned char *)text, &size));
+  HAMMER_CHECK(size == 13 && memcmp(text, "hammer plugin", 13) == 0);
+}
+
+// Walks an export request with images the way a plugin would, decoding each image's file.
+static void reads_export_images(void) {
+  static const char request[] =
+      "{\"format\":\"book.epub\",\"projectName\":\"Storm\",\"chapters\":[{\"name\":\"One\",\"scenes\":[],"
+      "\"prose\":[[{\"type\":\"paragraph\",\"spans\":[{\"text\":\"Rain.\"}]},{\"type\":\"image\",\"id\":5,"
+      "\"name\":\"Map\"}],[{\"type\":\"paragraph\",\"spans\":[{\"text\":\"Map\"}]}]]}],"
+      "\"images\":[{\"id\":2,\"name\":\"Cover\",\"extension\":\"jpg\",\"mimeType\":\"image/jpeg\",\"content\":\"AP8=\"},"
+      "{\"id\":5,\"name\":\"Map\",\"extension\":\"png\",\"mimeType\":\"image/png\",\"content\":\"iVBORw==\"}],"
+      "\"coverImageId\":2,\"settings\":{},\"locale\":null}";
+  int64_t ids[2] = {0}, cover = -1;
+  uint64_t sizes[2] = {0};
+  unsigned char first[2] = {0};
+  int images = 0;
+  HammerJson json;
+  const char *key, *raw;
+  uint64_t key_length, raw_length;
+
+  HAMMER_CHECK(hammer_json_find(request, strlen(request), "images", &json) && hammer_json_enter_array(&json));
+  while (hammer_json_next_item(&json) && hammer_json_enter_object(&json)) {
+    while (hammer_json_next_key(&json, &key, &key_length)) {
+      if (hammer_json_key_is(key, key_length, "id")) {
+        ids[images] = hammer_json_int(&json);
+      } else if (hammer_json_key_is(key, key_length, "content") && hammer_json_string(&json, &raw, &raw_length)) {
+        unsigned char *bytes = hammer_must_alloc(hammer_base64_size(raw_length));
+        HAMMER_CHECK(hammer_base64_decode(raw, raw_length, bytes, &sizes[images]));
+        first[images] = bytes[0];
+      } else {
+        hammer_json_skip(&json);
+      }
+    }
+    images++;
+  }
+  HAMMER_CHECK(!json.error && images == 2 && ids[0] == 2 && ids[1] == 5);
+  HAMMER_CHECK(sizes[0] == 2 && first[0] == 0 && sizes[1] == 4 && first[1] == 0x89);
+
+  HAMMER_CHECK(hammer_json_find(request, strlen(request), "coverImageId", &json));
+  if (hammer_json_peek(&json) != 'n') cover = hammer_json_int(&json);
+  HAMMER_CHECK(cover == 2);
+
+  // Each chapter's prose holds one list of blocks per scene.
+  int64_t prose_ids[2] = {0};
+  int scenes = 0, blocks = 0, found = 0;
+  HAMMER_CHECK(hammer_json_find(request, strlen(request), "chapters", &json) && hammer_json_enter_array(&json));
+  while (hammer_json_next_item(&json) && hammer_json_enter_object(&json)) {
+    while (hammer_json_next_key(&json, &key, &key_length)) {
+      if (!hammer_json_key_is(key, key_length, "prose")) {
+        hammer_json_skip(&json);
+        continue;
+      }
+      HAMMER_CHECK(hammer_json_enter_array(&json));
+      while (hammer_json_next_item(&json) && hammer_json_enter_array(&json)) {
+        scenes++;
+        while (hammer_json_next_item(&json) && hammer_json_enter_object(&json)) {
+          int is_image = 0;
+          int64_t id = -1;
+          while (hammer_json_next_key(&json, &key, &key_length)) {
+            if (hammer_json_key_is(key, key_length, "type") && hammer_json_string(&json, &raw, &raw_length)) {
+              is_image = hammer_json_key_is(raw, raw_length, "image");
+            } else if (hammer_json_key_is(key, key_length, "id")) {
+              id = hammer_json_int(&json);
+            } else {
+              hammer_json_skip(&json);
+            }
+          }
+          blocks++;
+          if (is_image && found < 2) prose_ids[found++] = id;
+        }
+      }
+    }
+  }
+  HAMMER_CHECK(!json.error && scenes == 2 && blocks == 3 && found == 1 && prose_ids[0] == 5);
+
+  static const char none[] = "{\"format\":\"hello.txt\",\"images\":[],\"coverImageId\":null}";
+  HAMMER_CHECK(hammer_json_find(none, strlen(none), "coverImageId", &json) && hammer_json_peek(&json) == 'n');
+  HAMMER_CHECK(hammer_json_find(none, strlen(none), "images", &json) && hammer_json_enter_array(&json));
+  HAMMER_CHECK(!hammer_json_next_item(&json) && !json.error);
+}
+
 // Writes s, with each \u{...} replaced by its code point's UTF-8, to out; returns how many bytes it wrote.
 static size_t unescape(const char *s, size_t n, char *out) {
   size_t length = 0;
@@ -263,6 +381,8 @@ int main(void) {
   writes_replies();
   reads_and_writes_entities();
   reads_image_references();
+  decodes_base64();
+  reads_export_images();
   splits_words();
   return hammer_test_summary();
 }

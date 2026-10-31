@@ -115,6 +115,46 @@ fun export(): Int = exporter { helloExport(it).encodeToByteArray() }
 
 Set `input = "prose"` on the exporter to get each scene as parsed blocks instead of markdown.
 
+### Embedding images
+
+`images = true` on the exporter sends the files of the images the story shows, and `cover = true` with
+it the project's cover as well (`cover` alone is refused at install). `request.images` has each one whose
+file Hammer could read, sorted by id, with its `name`, `extension`, `mimeType` (`application/octet-stream`
+for an extension Hammer does not know), and `content`, the file's bytes; `request.image(id)` finds one, or
+null when its file could not be read, and `request.cover` is the cover, or null. In markdown an image is
+still `![image](hammer://image/5)`, whose id `parseImageReference` or `findImageIds` reads (match the
+destination; the alt text means nothing). In prose, each scene is a list of blocks, and a line holding
+only an image becomes a block `{"type": "image", "id": 5, "name": "Map"}`, which `proseImageId(block)`
+reads, and its id is always in `images`; without `images = true` it stays a paragraph of the image's
+name. An image inside a line, or one whose file could not be read, arrives as its name in text and never
+as a block.
+
+```toml
+[[exporters]]
+# format, extension, mime, and label as above
+input = "prose"
+images = true
+cover = true
+```
+
+This one is not part of hello; `addFile` stands for the format's own writer.
+
+```kotlin
+request.chapters.flatMap { it.prose }.flatten().forEach { block ->
+	val image = proseImageId(block)?.let(request::image)
+	if (image != null) addFile("images/${image.id}.${image.extension}", image.content)
+}
+request.cover?.let { addFile("cover.${it.extension}", it.content) }
+```
+
+Each image may be up to 8 MiB, and base64 adds a third; Hammer sends every image the story refers to,
+in a request that must fit in the plugin's kernel (256 MiB, or a sixteenth of Hammer's heap if less),
+which no manifest key raises. A C or Rust plugin should raise `[limits] memory` to hold the request,
+the decoded images, and the output at once; a Kotlin plugin's objects live in the guest heap instead.
+hammer-editor's `docs/CLIENT-PLUGINS.md` has the rest. Rust reads the same request as
+`hammer::export::Request`, with `image`, `cover`, and `prose_image_id`; C walks it with `hammer_json.h`
+and decodes each `content` with `hammer_base64.h`'s `hammer_base64_decode`.
+
 ## An action with a message
 
 Adds an item to Project Home's menu. Every action replies with an `ActionReply`, and

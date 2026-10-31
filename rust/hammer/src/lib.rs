@@ -1,7 +1,7 @@
 //! Hammer's plugin kit for Rust. See hammer-editor's docs/CLIENT-PLUGINS.md for the exports a plugin
 //! provides (`export`, `action`, `command`, `diagnose`) and the JSON each one is given, which always
-//! includes `locale`, the UI's language tag, for replying in the user's language. [action] and
-//! [diagnose] have types for theirs.
+//! includes `locale`, the UI's language tag, for replying in the user's language. [export], [action],
+//! and [diagnose] have types for theirs.
 //!
 //! An export is a `#[unsafe(no_mangle)] pub extern "C" fn` returning `i32`, whose body is [run]:
 //!
@@ -23,6 +23,7 @@ use std::sync::Once;
 pub mod action;
 pub mod base64;
 pub mod diagnose;
+pub mod export;
 pub mod http;
 pub mod images;
 pub mod ops;

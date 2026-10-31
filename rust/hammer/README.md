@@ -2,7 +2,7 @@
 
 The Rust kit for writing plugins for [Hammer](https://hammer.ink), the novel writing app. A plugin is a
 WebAssembly module that Hammer runs in a sandbox; this crate gives it Hammer's imports, a typed function
-for each of Hammer's operations (`hammer::ops`), and the types for actions and text checks.
+for each of Hammer's operations (`hammer::ops`), and the types for exports, actions, and text checks.
 
 ```toml
 [lib]
