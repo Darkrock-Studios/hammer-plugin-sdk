@@ -38,7 +38,8 @@ class DumpOperationsTest {
 
 	private fun readDocs(source: String) {
 		val header = Regex("""class\s+(\w+)\s*\(""")
-		val field = Regex("""/\*\*(.*?)\*/\s*(?:@[^\n]*\n\s*)*va[lr]\s+(\w+)""", RegexOption.DOT_MATCHES_ALL)
+		// A doc never runs past its own */, and annotations may sit on the field's line or above it.
+		val field = Regex("""/\*\*((?:(?!\*/).)*)\*/\s*(?:@\w+(?:\([^)]*\))?\s*)*va[lr]\s+(\w+)""", RegexOption.DOT_MATCHES_ALL)
 		header.findAll(source).forEach { match ->
 			var depth = 1
 			var i = match.range.last + 1
