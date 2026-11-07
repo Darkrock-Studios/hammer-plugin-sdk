@@ -97,6 +97,33 @@ pub enum Cadence {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct CalendarDto {
+    pub preset: CalendarPresetDto,
+    /// What year 0 of a story calendar is called, such as "The Fall".
+    #[serde(rename = "epochName")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub epoch_name: Option<String>,
+    /// Story calendar only: the coarsest unit dates use, so a one-day story can run in hours.
+    #[serde(rename = "coarsestUnit")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub coarsest_unit: Option<String>,
+}
+
+/// A value this kit doesn't know, from a later Hammer, reads as [`CalendarPresetDto::Unknown`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CalendarPresetDto {
+    #[default]
+    #[serde(rename = "story")]
+    Story,
+    #[serde(rename = "gregorian")]
+    Gregorian,
+    /// A value this kit doesn't know. Hammer rejects it as an input.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ChapterWords {
     pub id: i32,
     pub name: String,
@@ -249,6 +276,17 @@ pub struct EntrySummary {
     /// Other names the entry goes by.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub aliases: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EvenSpacingDto {
+    /// The calendar unit to step by, such as "day".
+    pub unit: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub step: Option<i64>,
+    /// The first event's date, such as {"year": 97}.
+    pub origin: BTreeMap<String, i64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -829,13 +867,116 @@ pub struct Timeline {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct TimelineDefDeleted {
+    /// The deleted timeline's id.
+    pub timeline: String,
+    /// How many events were on it, deleted with it.
+    #[serde(rename = "deletedEvents")]
+    pub deleted_events: i32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TimelineDefDto {
+    /// Stable id; the main timeline is "main".
+    pub id: String,
+    pub name: String,
+    pub mode: TimelineModeDto,
+    /// The calendar dates are on; null until one is chosen.
+    pub calendar: Option<CalendarDto>,
+    /// Lanes in the order they are drawn; lanes in use but not listed follow alphabetically.
+    #[serde(rename = "laneOrder")]
+    pub lane_order: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TimelineEntry {
     pub id: i32,
+    /// Manual position. A dated timeline orders by start date and uses this only to break ties.
     pub order: i32,
-    /// Free text; timelines are not bound to a calendar.
+    /// Deprecated alias of label, always equal to it.
     pub date: Option<String>,
+    /// A plain event's markdown; always empty for a placement.
     pub content: String,
+    /// A plain event's tags; always empty for a placement.
     pub tags: Vec<String>,
+    /// A plain event, or the placement of an encyclopedia entry or a scene.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub kind: Option<TimelineKindDto>,
+    /// The placed entry or scene id; null for a plain event.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub subject: Option<i32>,
+    /// A plain event's own title.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub title: Option<String>,
+    /// Free-text "when" a manual timeline shows, such as "Day 3" or "Spring, 1802".
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub label: Option<String>,
+    /// The name to show: the subject's name, else the title, the content's first line, or the cached title.
+    #[serde(rename = "displayTitle")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub display_title: Option<String>,
+    /// The lane it runs in; null for none.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub lane: Option<String>,
+    /// A turning point, marked across every lane.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub milestone: Option<bool>,
+    /// When it starts on the timeline's calendar, as filled units such as {"year": 97, "day": 210}.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub start: Option<BTreeMap<String, i64>>,
+    /// When it ends, in the same form as start; null for a moment.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub end: Option<BTreeMap<String, i64>>,
+    /// Scene and entry ids a plain event refers to.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub references: Option<Vec<i32>>,
+    /// A placement's subject name when last seen, kept in case the subject is deleted.
+    #[serde(rename = "cachedTitle")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cached_title: Option<String>,
+    /// The id of the timeline it is on, "main" for the main one; a straggler keeps its deleted timeline's.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub timeline: Option<String>,
+}
+
+/// A value this kit doesn't know, from a later Hammer, reads as [`TimelineKindDto::Unknown`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TimelineKindDto {
+    #[default]
+    #[serde(rename = "event")]
+    Event,
+    #[serde(rename = "entry")]
+    Entry,
+    #[serde(rename = "scene")]
+    Scene,
+    /// A value this kit doesn't know. Hammer rejects it as an input.
+    #[serde(other)]
+    Unknown,
+}
+
+/// A value this kit doesn't know, from a later Hammer, reads as [`TimelineModeDto::Unknown`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TimelineModeDto {
+    #[default]
+    #[serde(rename = "manual")]
+    Manual,
+    #[serde(rename = "dated")]
+    Dated,
+    /// A value this kit doesn't know. Hammer rejects it as an input.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TimelineSettings {
+    /// The project's timelines: main first, then the others in the order they were made.
+    pub timelines: Vec<TimelineDefDto>,
+    /// Events whose timeline was deleted, such as one made offline before a sync; timeline.list orphaned lists them.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub orphaned: Option<i32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -2062,17 +2203,41 @@ pub mod timeline {
     /// The optional inputs of [`create`]; leave any out with `..Default::default()`.
     #[derive(Debug, Clone, Default, PartialEq, Serialize)]
     pub struct TimelineCreateOptions {
-        /// Free text, such as "Day 3" or "Spring, 1802".
+        /// Deprecated alias of label; label wins when both are given.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub date: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         pub tags: Option<Vec<String>>,
-        /// Its position in the timeline; left out, the end.
+        /// Its position in the timeline; left out, the end. A dated timeline takes none.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub index: Option<i32>,
+        /// Its own title; left out, the content's first line is shown.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub title: Option<String>,
+        /// Free-text "when" a manual timeline shows, such as "Day 3" or "Spring, 1802".
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub label: Option<String>,
+        /// The lane it runs in.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub lane: Option<String>,
+        /// A turning point, marked across every lane.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub milestone: Option<bool>,
+        /// When it starts on the timeline's calendar, such as {"year": 97, "day": 210}; required on a dated timeline.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub start: Option<BTreeMap<String, i64>>,
+        /// When it ends, in the same form as start; needs a start.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub end: Option<BTreeMap<String, i64>>,
+        /// Scene and entry ids it refers to.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub references: Option<Vec<i32>>,
+        /// The timeline's id, from timeline.settings.read; left out, or "main", the main timeline.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub timeline: Option<String>,
     }
 
-    /// Add an event to a project's timeline, at the end unless an index is given.
+    /// Add a plain event to a project's timeline, main unless timeline names another, at the end unless an index is given. A dated timeline needs a start and takes no index. Entries and scenes are added with timeline.place.
     ///
     /// Needs `timeline.create` or `content:write` in the manifest's `[permissions]`.
     pub fn create(project: &str, content: &str, options: TimelineCreateOptions) -> crate::Result<TimelineEntry> {
@@ -2086,7 +2251,7 @@ pub mod timeline {
         crate::call("timeline.create", &Input { project, content, options })
     }
 
-    /// Delete a timeline event for good.
+    /// Delete a timeline event for good. Deleting a placement leaves its entry or scene alone.
     ///
     /// Needs `timeline.delete` (by name) in the manifest's `[permissions]`.
     pub fn delete(project: &str, id: i32) -> crate::Result<TimelineEntry> {
@@ -2098,18 +2263,31 @@ pub mod timeline {
         crate::call("timeline.delete", &Input { project, id })
     }
 
-    /// A project's timeline events in order.
+    /// The optional inputs of [`list`]; leave any out with `..Default::default()`.
+    #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+    pub struct TimelineListOptions {
+        /// The timeline's id; left out, or "main", the main timeline.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub timeline: Option<String>,
+        /// Instead, the events whose timeline was deleted.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub orphaned: Option<bool>,
+    }
+
+    /// A timeline's events in display order: their manual order, or by start date on a dated timeline. The main timeline unless timeline names another; orphaned lists, by order, the events left on timelines deleted since, such as one made offline before a sync.
     ///
     /// Needs `timeline.list` or `content:read` in the manifest's `[permissions]`.
-    pub fn list(project: &str) -> crate::Result<Timeline> {
+    pub fn list(project: &str, options: TimelineListOptions) -> crate::Result<Timeline> {
         #[derive(Serialize)]
         struct Input<'a> {
             project: &'a str,
+            #[serde(flatten)]
+            options: TimelineListOptions,
         }
-        crate::call("timeline.list", &Input { project })
+        crate::call("timeline.list", &Input { project, options })
     }
 
-    /// Move a timeline event to a position; index is its position after the move.
+    /// Move a timeline event to a position on its own timeline; index is its position after the move. A dated timeline is ordered by its dates, so nothing can be moved on it. timeline.set moves an event to another timeline.
     ///
     /// Needs `timeline.move` or `content:write` in the manifest's `[permissions]`.
     pub fn r#move(project: &str, id: i32, index: i32) -> crate::Result<TimelineEntry> {
@@ -2120,6 +2298,41 @@ pub mod timeline {
             index: i32,
         }
         crate::call("timeline.move", &Input { project, id, index })
+    }
+
+    /// The optional inputs of [`place`]; leave any out with `..Default::default()`.
+    #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+    pub struct TimelinePlaceOptions {
+        /// When it starts on the timeline's calendar, such as {"year": 97, "day": 210}; required on a dated timeline.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub start: Option<BTreeMap<String, i64>>,
+        /// When it ends, in the same form as start; needs a start.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub end: Option<BTreeMap<String, i64>>,
+        /// The lane it runs in.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub lane: Option<String>,
+        /// A turning point, marked across every lane.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub milestone: Option<bool>,
+        /// The timeline's id, from timeline.settings.read; left out, or "main", the main timeline.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub timeline: Option<String>,
+    }
+
+    /// Place an encyclopedia entry of type event, or a scene, on a project's timeline, main unless timeline names another. Each can be placed once on each timeline, and its name and words come from it. A dated timeline needs a start.
+    ///
+    /// Needs `timeline.place` or `content:write` in the manifest's `[permissions]`.
+    pub fn place(project: &str, kind: TimelineKindDto, subject: i32, options: TimelinePlaceOptions) -> crate::Result<TimelineEntry> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            kind: TimelineKindDto,
+            subject: i32,
+            #[serde(flatten)]
+            options: TimelinePlaceOptions,
+        }
+        crate::call("timeline.place", &Input { project, kind, subject, options })
     }
 
     /// One timeline event.
@@ -2134,17 +2347,78 @@ pub mod timeline {
         crate::call("timeline.read", &Input { project, id })
     }
 
+    /// The optional inputs of [`set`]; leave any out with `..Default::default()`.
+    #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+    pub struct TimelineSetOptions {
+        /// A plain event's own title.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub title: Option<String>,
+        /// The free-text "when", shown on a manual timeline.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub label: Option<String>,
+        /// The lane it runs in.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub lane: Option<String>,
+        /// A turning point, marked across every lane.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub milestone: Option<bool>,
+        /// When it starts on the timeline's calendar, such as {"year": 97, "day": 210}.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub start: Option<BTreeMap<String, i64>>,
+        /// When it ends, in the same form as start.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub end: Option<BTreeMap<String, i64>>,
+        /// Fields to clear, from title, label, lane, start, and end.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub clear: Option<Vec<String>>,
+        /// Moves the event to this timeline, by id, "main" for the main one.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub timeline: Option<String>,
+    }
+
+    /// Set single fields of any timeline event, or clear them by name, leaving the rest alone. A placement takes only label, lane, milestone, start, and end. This is how a placement is edited. A timeline other than the event's own moves it there, with start and end, when given, as its dates on that timeline's calendar; a dated timeline refuses the move unless the event's start fits or one is given.
+    ///
+    /// Needs `timeline.set` or `content:write` in the manifest's `[permissions]`.
+    pub fn set(project: &str, id: i32, options: TimelineSetOptions) -> crate::Result<TimelineEntry> {
+        #[derive(Serialize)]
+        struct Input<'a> {
+            project: &'a str,
+            id: i32,
+            #[serde(flatten)]
+            options: TimelineSetOptions,
+        }
+        crate::call("timeline.set", &Input { project, id, options })
+    }
+
     /// The optional inputs of [`update`]; leave any out with `..Default::default()`.
     #[derive(Debug, Clone, Default, PartialEq, Serialize)]
     pub struct TimelineUpdateOptions {
-        /// Left out, unchanged; empty, cleared.
+        /// Deprecated alias of label; label wins when both are given.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub date: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         pub tags: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub title: Option<String>,
+        /// Free-text "when" a manual timeline shows.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub label: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub lane: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub milestone: Option<bool>,
+        /// When it starts on the timeline's calendar, such as {"year": 97, "day": 210}.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub start: Option<BTreeMap<String, i64>>,
+        /// When it ends, in the same form as start.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub end: Option<BTreeMap<String, i64>>,
+        /// Scene and entry ids it refers to.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub references: Option<Vec<i32>>,
     }
 
-    /// Replace a timeline event's text, and its date or tags when given. An empty date clears it.
+    /// Replace a plain event's text, and any other field given; an empty value clears it. The text is always required, so every call replaces it. Edit a placement with timeline.set.
     ///
     /// Needs `timeline.update` or `content:write` in the manifest's `[permissions]`.
     pub fn update(project: &str, id: i32, content: &str, options: TimelineUpdateOptions) -> crate::Result<TimelineEntry> {
@@ -2157,6 +2431,106 @@ pub mod timeline {
             options: TimelineUpdateOptions,
         }
         crate::call("timeline.update", &Input { project, id, content, options })
+    }
+
+    /// The `timeline.def` operations.
+    pub mod def {
+        use super::*;
+
+        /// The optional inputs of [`create`]; leave any out with `..Default::default()`.
+        #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+        pub struct TimelineDefCreateOptions {
+            /// Left out, manual.
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub mode: Option<TimelineModeDto>,
+            /// Required for a dated timeline.
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub calendar: Option<CalendarDto>,
+            /// Lanes in the order they are drawn.
+            #[serde(rename = "laneOrder")]
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub lane_order: Option<Vec<String>>,
+        }
+
+        /// Add a timeline to a project, manual unless mode says otherwise; a dated one needs a calendar. Its name is trimmed and no other timeline may have it, ignoring case. Returns it with its id, which the timeline option of other operations takes.
+        ///
+        /// Needs `timeline.def.create` or `content:write` in the manifest's `[permissions]`.
+        pub fn create(project: &str, name: &str, options: TimelineDefCreateOptions) -> crate::Result<TimelineDefDto> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+                name: &'a str,
+                #[serde(flatten)]
+                options: TimelineDefCreateOptions,
+            }
+            crate::call("timeline.def.create", &Input { project, name, options })
+        }
+
+        /// Delete a timeline and every event on it for good; entries and scenes placed there are left alone. The main timeline cannot be deleted.
+        ///
+        /// Needs `timeline.def.delete` (by name) in the manifest's `[permissions]`.
+        pub fn delete(project: &str, timeline: &str) -> crate::Result<TimelineDefDeleted> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+                timeline: &'a str,
+            }
+            crate::call("timeline.def.delete", &Input { project, timeline })
+        }
+
+    }
+
+    /// The `timeline.settings` operations.
+    pub mod settings {
+        use super::*;
+
+        /// A project's timelines, main first, each with its id, name, mode, calendar, and lane order, and how many events are left on timelines deleted since (see timeline.list orphaned).
+        ///
+        /// Needs `timeline.settings.read` or `content:read` in the manifest's `[permissions]`.
+        pub fn read(project: &str) -> crate::Result<TimelineSettings> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+            }
+            crate::call("timeline.settings.read", &Input { project })
+        }
+
+        /// The optional inputs of [`write`]; leave any out with `..Default::default()`.
+        #[derive(Debug, Clone, Default, PartialEq, Serialize)]
+        pub struct TimelineSettingsWriteOptions {
+            /// A new name, which renames the timeline.
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub name: Option<String>,
+            /// Switching to dated needs a calendar, here or already set.
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub mode: Option<TimelineModeDto>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub calendar: Option<CalendarDto>,
+            /// Lanes in the order they are drawn.
+            #[serde(rename = "laneOrder")]
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub lane_order: Option<Vec<String>>,
+            /// Only when switching to dated; left out, events are one of the calendar's coarsest unit apart.
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub spacing: Option<EvenSpacingDto>,
+            /// The timeline's id; left out, or "main", the main timeline.
+            #[serde(skip_serializing_if = "Option::is_none")]
+            pub timeline: Option<String>,
+        }
+
+        /// Change one timeline's settings, main unless timeline names another; fields left out stay as they are, and name renames it. Switching to dated gives every event without a valid start one, spaced evenly in the current order; switching to manual keeps the date order as the manual order. A new calendar drops dates that do not fit it, keeping the start as the label of an event that has none.
+        ///
+        /// Needs `timeline.settings.write` or `content:write` in the manifest's `[permissions]`.
+        pub fn write(project: &str, options: TimelineSettingsWriteOptions) -> crate::Result<TimelineSettings> {
+            #[derive(Serialize)]
+            struct Input<'a> {
+                project: &'a str,
+                #[serde(flatten)]
+                options: TimelineSettingsWriteOptions,
+            }
+            crate::call("timeline.settings.write", &Input { project, options })
+        }
+
     }
 
 }
