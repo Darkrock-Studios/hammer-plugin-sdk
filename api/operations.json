@@ -5139,7 +5139,7 @@
         },
         {
             "name": "timeline.create",
-            "description": "Add an event to a project's timeline, at the end unless an index is given.",
+            "description": "Add a plain event to a project's timeline, main unless timeline names another, at the end unless an index is given. A dated timeline needs a start and takes no index. Entries and scenes are added with timeline.place.",
             "access": "write",
             "scope": "content",
             "input": {
@@ -5161,7 +5161,7 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Free text, such as \"Day 3\" or \"Spring, 1802\"."
+                        "description": "Deprecated alias of label; label wins when both are given."
                     },
                     "tags": {
                         "type": "array",
@@ -5178,7 +5178,92 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Its position in the timeline; left out, the end."
+                        "description": "Its position in the timeline; left out, the end. A dated timeline takes none."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Its own title; left out, the content's first line is shown."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, such as {\"year\": 97, \"day\": 210}; required on a dated timeline."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; needs a start."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids it refers to."
+                    },
+                    "timeline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The timeline's id, from timeline.settings.read; left out, or \"main\", the main timeline."
                     }
                 },
                 "required": [
@@ -5195,7 +5280,8 @@
                         "type": "integer"
                     },
                     "order": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
                     },
                     "date": {
                         "anyOf": [
@@ -5206,16 +5292,132 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Free text; timelines are not bound to a calendar."
+                        "description": "Deprecated alias of label, always equal to it."
                     },
                     "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
                     },
                     "tags": {
                         "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
                     }
                 },
                 "required": [
@@ -5230,8 +5432,229 @@
             }
         },
         {
+            "name": "timeline.def.create",
+            "description": "Add a timeline to a project, manual unless mode says otherwise; a dated one needs a calendar. Its name is trimmed and no other timeline may have it, ignoring case. Returns it with its id, which the timeline option of other operations takes.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "manual",
+                                    "dated"
+                                ],
+                                "x-name": "TimelineModeDto"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Left out, manual."
+                    },
+                    "calendar": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "preset": {
+                                        "type": "string",
+                                        "enum": [
+                                            "story",
+                                            "gregorian"
+                                        ],
+                                        "x-name": "CalendarPresetDto"
+                                    },
+                                    "epochName": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ],
+                                        "description": "What year 0 of a story calendar is called, such as \"The Fall\"."
+                                    },
+                                    "coarsestUnit": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ],
+                                        "description": "Story calendar only: the coarsest unit dates use, so a one-day story can run in hours."
+                                    }
+                                },
+                                "required": [
+                                    "preset"
+                                ],
+                                "additionalProperties": false,
+                                "x-name": "CalendarDto"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Required for a dated timeline."
+                    },
+                    "laneOrder": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Lanes in the order they are drawn."
+                    }
+                },
+                "required": [
+                    "project",
+                    "name"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineDefCreateInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Stable id; the main timeline is \"main\"."
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "manual",
+                            "dated"
+                        ],
+                        "x-name": "TimelineModeDto"
+                    },
+                    "calendar": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "preset": {
+                                        "type": "string",
+                                        "enum": [
+                                            "story",
+                                            "gregorian"
+                                        ],
+                                        "x-name": "CalendarPresetDto"
+                                    },
+                                    "epochName": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ],
+                                        "description": "What year 0 of a story calendar is called, such as \"The Fall\"."
+                                    },
+                                    "coarsestUnit": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ],
+                                        "description": "Story calendar only: the coarsest unit dates use, so a one-day story can run in hours."
+                                    }
+                                },
+                                "required": [
+                                    "preset"
+                                ],
+                                "additionalProperties": false,
+                                "x-name": "CalendarDto"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The calendar dates are on; null until one is chosen."
+                    },
+                    "laneOrder": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Lanes in the order they are drawn; lanes in use but not listed follow alphabetically."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "mode",
+                    "calendar",
+                    "laneOrder"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineDefDto"
+            }
+        },
+        {
+            "name": "timeline.def.delete",
+            "description": "Delete a timeline and every event on it for good; entries and scenes placed there are left alone. The main timeline cannot be deleted.",
+            "access": "destructive",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The timeline's id; main cannot be deleted."
+                    }
+                },
+                "required": [
+                    "project",
+                    "timeline"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineDefDeleteInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "timeline": {
+                        "type": "string",
+                        "description": "The deleted timeline's id."
+                    },
+                    "deletedEvents": {
+                        "type": "integer",
+                        "description": "How many events were on it, deleted with it."
+                    }
+                },
+                "required": [
+                    "timeline",
+                    "deletedEvents"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineDefDeleted"
+            }
+        },
+        {
             "name": "timeline.delete",
-            "description": "Delete a timeline event for good.",
+            "description": "Delete a timeline event for good. Deleting a placement leaves its entry or scene alone.",
             "access": "destructive",
             "scope": "content",
             "input": {
@@ -5258,7 +5681,8 @@
                         "type": "integer"
                     },
                     "order": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
                     },
                     "date": {
                         "anyOf": [
@@ -5269,16 +5693,132 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Free text; timelines are not bound to a calendar."
+                        "description": "Deprecated alias of label, always equal to it."
                     },
                     "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
                     },
                     "tags": {
                         "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
                     }
                 },
                 "required": [
@@ -5294,22 +5834,36 @@
         },
         {
             "name": "timeline.list",
-            "description": "A project's timeline events in order.",
+            "description": "A timeline's events in display order: their manual order, or by start date on a dated timeline. The main timeline unless timeline names another; orphaned lists, by order, the events left on timelines deleted since, such as one made offline before a sync.",
             "access": "read",
             "scope": "content",
             "input": {
                 "type": "object",
                 "properties": {
                     "project": {
-                        "type": "string",
-                        "description": "The project's name, or its server project id."
+                        "type": "string"
+                    },
+                    "timeline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The timeline's id; left out, or \"main\", the main timeline."
+                    },
+                    "orphaned": {
+                        "type": "boolean",
+                        "description": "Instead, the events whose timeline was deleted."
                     }
                 },
                 "required": [
                     "project"
                 ],
                 "additionalProperties": false,
-                "x-name": "ProjectInput"
+                "x-name": "TimelineListInput"
             },
             "output": {
                 "type": "object",
@@ -5323,7 +5877,8 @@
                                     "type": "integer"
                                 },
                                 "order": {
-                                    "type": "integer"
+                                    "type": "integer",
+                                    "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
                                 },
                                 "date": {
                                     "anyOf": [
@@ -5334,16 +5889,132 @@
                                             "type": "null"
                                         }
                                     ],
-                                    "description": "Free text; timelines are not bound to a calendar."
+                                    "description": "Deprecated alias of label, always equal to it."
                                 },
                                 "content": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "description": "A plain event's markdown; always empty for a placement."
                                 },
                                 "tags": {
                                     "type": "array",
                                     "items": {
                                         "type": "string"
-                                    }
+                                    },
+                                    "description": "A plain event's tags; always empty for a placement."
+                                },
+                                "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                        "event",
+                                        "entry",
+                                        "scene"
+                                    ],
+                                    "x-name": "TimelineKindDto",
+                                    "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                                },
+                                "subject": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "The placed entry or scene id; null for a plain event."
+                                },
+                                "title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "A plain event's own title."
+                                },
+                                "label": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                                },
+                                "displayTitle": {
+                                    "type": "string",
+                                    "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                                },
+                                "lane": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "The lane it runs in; null for none."
+                                },
+                                "milestone": {
+                                    "type": "boolean",
+                                    "description": "A turning point, marked across every lane."
+                                },
+                                "start": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer",
+                                                "format": "int64"
+                                            }
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                                },
+                                "end": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer",
+                                                "format": "int64"
+                                            }
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "When it ends, in the same form as start; null for a moment."
+                                },
+                                "references": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "integer"
+                                    },
+                                    "description": "Scene and entry ids a plain event refers to."
+                                },
+                                "cachedTitle": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                                },
+                                "timeline": {
+                                    "type": "string",
+                                    "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
                                 }
                             },
                             "required": [
@@ -5367,7 +6038,7 @@
         },
         {
             "name": "timeline.move",
-            "description": "Move a timeline event to a position; index is its position after the move.",
+            "description": "Move a timeline event to a position on its own timeline; index is its position after the move. A dated timeline is ordered by its dates, so nothing can be moved on it. timeline.set moves an event to another timeline.",
             "access": "write",
             "scope": "content",
             "input": {
@@ -5398,7 +6069,8 @@
                         "type": "integer"
                     },
                     "order": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
                     },
                     "date": {
                         "anyOf": [
@@ -5409,16 +6081,380 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Free text; timelines are not bound to a calendar."
+                        "description": "Deprecated alias of label, always equal to it."
                     },
                     "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
                     },
                     "tags": {
                         "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
+                    }
+                },
+                "required": [
+                    "id",
+                    "order",
+                    "date",
+                    "content",
+                    "tags"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineEntry"
+            }
+        },
+        {
+            "name": "timeline.place",
+            "description": "Place an encyclopedia entry of type event, or a scene, on a project's timeline, main unless timeline names another. Each can be placed once on each timeline, and its name and words come from it. A dated timeline needs a start.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "entry or scene."
+                    },
+                    "subject": {
+                        "type": "integer",
+                        "description": "The entry or scene id."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, such as {\"year\": 97, \"day\": 210}; required on a dated timeline."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; needs a start."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "timeline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The timeline's id, from timeline.settings.read; left out, or \"main\", the main timeline."
+                    }
+                },
+                "required": [
+                    "project",
+                    "kind",
+                    "subject"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelinePlaceInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "order": {
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
+                    },
+                    "date": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Deprecated alias of label, always equal to it."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
                     }
                 },
                 "required": [
@@ -5461,7 +6497,8 @@
                         "type": "integer"
                     },
                     "order": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
                     },
                     "date": {
                         "anyOf": [
@@ -5472,16 +6509,132 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Free text; timelines are not bound to a calendar."
+                        "description": "Deprecated alias of label, always equal to it."
                     },
                     "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
                     },
                     "tags": {
                         "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
                     }
                 },
                 "required": [
@@ -5496,8 +6649,658 @@
             }
         },
         {
+            "name": "timeline.set",
+            "description": "Set single fields of any timeline event, or clear them by name, leaving the rest alone. A placement takes only label, lane, milestone, start, and end. This is how a placement is edited. A timeline other than the event's own moves it there, with start and end, when given, as its dates on that timeline's calendar; a dated timeline refuses the move unless the event's start fits or one is given.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "The timeline event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The free-text \"when\", shown on a manual timeline."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in."
+                    },
+                    "milestone": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start."
+                    },
+                    "clear": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Fields to clear, from title, label, lane, start, and end."
+                    },
+                    "timeline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Moves the event to this timeline, by id, \"main\" for the main one."
+                    }
+                },
+                "required": [
+                    "project",
+                    "id"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineSetInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "order": {
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
+                    },
+                    "date": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Deprecated alias of label, always equal to it."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
+                    }
+                },
+                "required": [
+                    "id",
+                    "order",
+                    "date",
+                    "content",
+                    "tags"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineEntry"
+            }
+        },
+        {
+            "name": "timeline.settings.read",
+            "description": "A project's timelines, main first, each with its id, name, mode, calendar, and lane order, and how many events are left on timelines deleted since (see timeline.list orphaned).",
+            "access": "read",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string",
+                        "description": "The project's name, or its server project id."
+                    }
+                },
+                "required": [
+                    "project"
+                ],
+                "additionalProperties": false,
+                "x-name": "ProjectInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "timelines": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Stable id; the main timeline is \"main\"."
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "mode": {
+                                    "type": "string",
+                                    "enum": [
+                                        "manual",
+                                        "dated"
+                                    ],
+                                    "x-name": "TimelineModeDto"
+                                },
+                                "calendar": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "preset": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "story",
+                                                        "gregorian"
+                                                    ],
+                                                    "x-name": "CalendarPresetDto"
+                                                },
+                                                "epochName": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "string"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ],
+                                                    "description": "What year 0 of a story calendar is called, such as \"The Fall\"."
+                                                },
+                                                "coarsestUnit": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "string"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ],
+                                                    "description": "Story calendar only: the coarsest unit dates use, so a one-day story can run in hours."
+                                                }
+                                            },
+                                            "required": [
+                                                "preset"
+                                            ],
+                                            "additionalProperties": false,
+                                            "x-name": "CalendarDto"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "The calendar dates are on; null until one is chosen."
+                                },
+                                "laneOrder": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Lanes in the order they are drawn; lanes in use but not listed follow alphabetically."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "mode",
+                                "calendar",
+                                "laneOrder"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "TimelineDefDto"
+                        },
+                        "description": "The project's timelines: main first, then the others in the order they were made."
+                    },
+                    "orphaned": {
+                        "type": "integer",
+                        "description": "Events whose timeline was deleted, such as one made offline before a sync; timeline.list orphaned lists them."
+                    }
+                },
+                "required": [
+                    "timelines"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineSettings"
+            }
+        },
+        {
+            "name": "timeline.settings.write",
+            "description": "Change one timeline's settings, main unless timeline names another; fields left out stay as they are, and name renames it. Switching to dated gives every event without a valid start one, spaced evenly in the current order; switching to manual keeps the date order as the manual order. A new calendar drops dates that do not fit it, keeping the start as the label of an event that has none.",
+            "access": "write",
+            "scope": "content",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A new name, which renames the timeline."
+                    },
+                    "mode": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "manual",
+                                    "dated"
+                                ],
+                                "x-name": "TimelineModeDto"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Switching to dated needs a calendar, here or already set."
+                    },
+                    "calendar": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "preset": {
+                                        "type": "string",
+                                        "enum": [
+                                            "story",
+                                            "gregorian"
+                                        ],
+                                        "x-name": "CalendarPresetDto"
+                                    },
+                                    "epochName": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ],
+                                        "description": "What year 0 of a story calendar is called, such as \"The Fall\"."
+                                    },
+                                    "coarsestUnit": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "null"
+                                            }
+                                        ],
+                                        "description": "Story calendar only: the coarsest unit dates use, so a one-day story can run in hours."
+                                    }
+                                },
+                                "required": [
+                                    "preset"
+                                ],
+                                "additionalProperties": false,
+                                "x-name": "CalendarDto"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "laneOrder": {
+                        "anyOf": [
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Lanes in the order they are drawn."
+                    },
+                    "spacing": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "unit": {
+                                        "type": "string",
+                                        "description": "The calendar unit to step by, such as \"day\"."
+                                    },
+                                    "step": {
+                                        "type": "integer",
+                                        "format": "int64"
+                                    },
+                                    "origin": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                            "type": "integer",
+                                            "format": "int64"
+                                        },
+                                        "description": "The first event's date, such as {\"year\": 97}."
+                                    }
+                                },
+                                "required": [
+                                    "unit",
+                                    "origin"
+                                ],
+                                "additionalProperties": false,
+                                "x-name": "EvenSpacingDto"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Only when switching to dated; left out, events are one of the calendar's coarsest unit apart."
+                    },
+                    "timeline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The timeline's id; left out, or \"main\", the main timeline."
+                    }
+                },
+                "required": [
+                    "project"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineSettingsWriteInput"
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "timelines": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Stable id; the main timeline is \"main\"."
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "mode": {
+                                    "type": "string",
+                                    "enum": [
+                                        "manual",
+                                        "dated"
+                                    ],
+                                    "x-name": "TimelineModeDto"
+                                },
+                                "calendar": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "preset": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "story",
+                                                        "gregorian"
+                                                    ],
+                                                    "x-name": "CalendarPresetDto"
+                                                },
+                                                "epochName": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "string"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ],
+                                                    "description": "What year 0 of a story calendar is called, such as \"The Fall\"."
+                                                },
+                                                "coarsestUnit": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "string"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ],
+                                                    "description": "Story calendar only: the coarsest unit dates use, so a one-day story can run in hours."
+                                                }
+                                            },
+                                            "required": [
+                                                "preset"
+                                            ],
+                                            "additionalProperties": false,
+                                            "x-name": "CalendarDto"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "description": "The calendar dates are on; null until one is chosen."
+                                },
+                                "laneOrder": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Lanes in the order they are drawn; lanes in use but not listed follow alphabetically."
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "name",
+                                "mode",
+                                "calendar",
+                                "laneOrder"
+                            ],
+                            "additionalProperties": false,
+                            "x-name": "TimelineDefDto"
+                        },
+                        "description": "The project's timelines: main first, then the others in the order they were made."
+                    },
+                    "orphaned": {
+                        "type": "integer",
+                        "description": "Events whose timeline was deleted, such as one made offline before a sync; timeline.list orphaned lists them."
+                    }
+                },
+                "required": [
+                    "timelines"
+                ],
+                "additionalProperties": false,
+                "x-name": "TimelineSettings"
+            }
+        },
+        {
             "name": "timeline.update",
-            "description": "Replace a timeline event's text, and its date or tags when given. An empty date clears it.",
+            "description": "Replace a plain event's text, and any other field given; an empty value clears it. The text is always required, so every call replaces it. Edit a placement with timeline.set.",
             "access": "write",
             "scope": "content",
             "input": {
@@ -5511,7 +7314,8 @@
                     },
                     "content": {
                         "type": "string",
-                        "x-hammer-stdin": "text"
+                        "x-hammer-stdin": "text",
+                        "description": "The plain event's markdown; must be empty for a placement, which is edited with timeline.set."
                     },
                     "date": {
                         "anyOf": [
@@ -5522,7 +7326,7 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Left out, unchanged; empty, cleared."
+                        "description": "Deprecated alias of label; label wins when both are given."
                     },
                     "tags": {
                         "anyOf": [
@@ -5536,6 +7340,91 @@
                                 "type": "null"
                             }
                         ]
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "milestone": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start."
+                    },
+                    "references": {
+                        "anyOf": [
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Scene and entry ids it refers to."
                     }
                 },
                 "required": [
@@ -5553,7 +7442,8 @@
                         "type": "integer"
                     },
                     "order": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "Manual position. A dated timeline orders by start date and uses this only to break ties."
                     },
                     "date": {
                         "anyOf": [
@@ -5564,16 +7454,132 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "Free text; timelines are not bound to a calendar."
+                        "description": "Deprecated alias of label, always equal to it."
                     },
                     "content": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "A plain event's markdown; always empty for a placement."
                     },
                     "tags": {
                         "type": "array",
                         "items": {
                             "type": "string"
-                        }
+                        },
+                        "description": "A plain event's tags; always empty for a placement."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "event",
+                            "entry",
+                            "scene"
+                        ],
+                        "x-name": "TimelineKindDto",
+                        "description": "A plain event, or the placement of an encyclopedia entry or a scene."
+                    },
+                    "subject": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The placed entry or scene id; null for a plain event."
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A plain event's own title."
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Free-text \"when\" a manual timeline shows, such as \"Day 3\" or \"Spring, 1802\"."
+                    },
+                    "displayTitle": {
+                        "type": "string",
+                        "description": "The name to show: the subject's name, else the title, the content's first line, or the cached title."
+                    },
+                    "lane": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "The lane it runs in; null for none."
+                    },
+                    "milestone": {
+                        "type": "boolean",
+                        "description": "A turning point, marked across every lane."
+                    },
+                    "start": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it starts on the timeline's calendar, as filled units such as {\"year\": 97, \"day\": 210}."
+                    },
+                    "end": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "format": "int64"
+                                }
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "When it ends, in the same form as start; null for a moment."
+                    },
+                    "references": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Scene and entry ids a plain event refers to."
+                    },
+                    "cachedTitle": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "A placement's subject name when last seen, kept in case the subject is deleted."
+                    },
+                    "timeline": {
+                        "type": "string",
+                        "description": "The id of the timeline it is on, \"main\" for the main one; a straggler keeps its deleted timeline's."
                     }
                 },
                 "required": [

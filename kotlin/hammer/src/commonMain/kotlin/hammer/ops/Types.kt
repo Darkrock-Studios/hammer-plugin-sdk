@@ -8,6 +8,7 @@ import hammer.OperationEnumSerializer
 import kotlin.Boolean
 import kotlin.ByteArray
 import kotlin.Int
+import kotlin.Long
 import kotlin.String
 import kotlin.Suppress
 import kotlin.collections.List
@@ -104,6 +105,37 @@ public enum class Cadence(
 	;
 
 	internal object Serializer : OperationEnumSerializer<Cadence>("hammer.ops.Cadence", Cadence.entries, Cadence.Unknown, { it.value })
+}
+
+@Serializable
+public data class CalendarDto(
+	public val preset: CalendarPresetDto = CalendarPresetDto.Story,
+	/**
+	 * What year 0 of a story calendar is called, such as "The Fall".
+	 */
+	public val epochName: String? = null,
+	/**
+	 * Story calendar only: the coarsest unit dates use, so a one-day story can run in hours.
+	 */
+	public val coarsestUnit: String? = null,
+)
+
+/**
+ * A value this kit doesn't know, from a later Hammer, reads as [Unknown].
+ */
+@Serializable(with = CalendarPresetDto.Serializer::class)
+public enum class CalendarPresetDto(
+	/**
+	 * What Hammer calls it; empty for [Unknown].
+	 */
+	public val `value`: String,
+) {
+	Story("story"),
+	Gregorian("gregorian"),
+	Unknown(""),
+	;
+
+	internal object Serializer : OperationEnumSerializer<CalendarPresetDto>("hammer.ops.CalendarPresetDto", CalendarPresetDto.entries, CalendarPresetDto.Unknown, { it.value })
 }
 
 @Serializable
@@ -260,6 +292,19 @@ public data class EntrySummary(
 	 * Other names the entry goes by.
 	 */
 	public val aliases: List<String>? = null,
+)
+
+@Serializable
+public data class EvenSpacingDto(
+	/**
+	 * The calendar unit to step by, such as "day".
+	 */
+	public val unit: String = "",
+	public val step: Long? = null,
+	/**
+	 * The first event's date, such as {"year": 97}.
+	 */
+	public val origin: Map<String, Long> = emptyMap(),
 )
 
 @Serializable
@@ -837,15 +882,151 @@ public data class Timeline(
 )
 
 @Serializable
+public data class TimelineDefDeleted(
+	/**
+	 * The deleted timeline's id.
+	 */
+	public val timeline: String = "",
+	/**
+	 * How many events were on it, deleted with it.
+	 */
+	public val deletedEvents: Int = 0,
+)
+
+@Serializable
+public data class TimelineDefDto(
+	/**
+	 * Stable id; the main timeline is "main".
+	 */
+	public val id: String = "",
+	public val name: String = "",
+	public val mode: TimelineModeDto = TimelineModeDto.Manual,
+	/**
+	 * The calendar dates are on; null until one is chosen.
+	 */
+	public val calendar: CalendarDto? = null,
+	/**
+	 * Lanes in the order they are drawn; lanes in use but not listed follow alphabetically.
+	 */
+	public val laneOrder: List<String> = emptyList(),
+)
+
+@Serializable
 public data class TimelineEntry(
 	public val id: Int = 0,
+	/**
+	 * Manual position. A dated timeline orders by start date and uses this only to break ties.
+	 */
 	public val order: Int = 0,
 	/**
-	 * Free text; timelines are not bound to a calendar.
+	 * Deprecated alias of label, always equal to it.
 	 */
 	public val date: String? = null,
+	/**
+	 * A plain event's markdown; always empty for a placement.
+	 */
 	public val content: String = "",
+	/**
+	 * A plain event's tags; always empty for a placement.
+	 */
 	public val tags: List<String> = emptyList(),
+	/**
+	 * A plain event, or the placement of an encyclopedia entry or a scene.
+	 */
+	public val kind: TimelineKindDto? = null,
+	/**
+	 * The placed entry or scene id; null for a plain event.
+	 */
+	public val subject: Int? = null,
+	/**
+	 * A plain event's own title.
+	 */
+	public val title: String? = null,
+	/**
+	 * Free-text "when" a manual timeline shows, such as "Day 3" or "Spring, 1802".
+	 */
+	public val label: String? = null,
+	/**
+	 * The name to show: the subject's name, else the title, the content's first line, or the cached title.
+	 */
+	public val displayTitle: String? = null,
+	/**
+	 * The lane it runs in; null for none.
+	 */
+	public val lane: String? = null,
+	/**
+	 * A turning point, marked across every lane.
+	 */
+	public val milestone: Boolean? = null,
+	/**
+	 * When it starts on the timeline's calendar, as filled units such as {"year": 97, "day": 210}.
+	 */
+	public val start: Map<String, Long>? = null,
+	/**
+	 * When it ends, in the same form as start; null for a moment.
+	 */
+	public val end: Map<String, Long>? = null,
+	/**
+	 * Scene and entry ids a plain event refers to.
+	 */
+	public val references: List<Int>? = null,
+	/**
+	 * A placement's subject name when last seen, kept in case the subject is deleted.
+	 */
+	public val cachedTitle: String? = null,
+	/**
+	 * The id of the timeline it is on, "main" for the main one; a straggler keeps its deleted timeline's.
+	 */
+	public val timeline: String? = null,
+)
+
+/**
+ * A value this kit doesn't know, from a later Hammer, reads as [Unknown].
+ */
+@Serializable(with = TimelineKindDto.Serializer::class)
+public enum class TimelineKindDto(
+	/**
+	 * What Hammer calls it; empty for [Unknown].
+	 */
+	public val `value`: String,
+) {
+	Event("event"),
+	Entry("entry"),
+	Scene("scene"),
+	Unknown(""),
+	;
+
+	internal object Serializer : OperationEnumSerializer<TimelineKindDto>("hammer.ops.TimelineKindDto", TimelineKindDto.entries, TimelineKindDto.Unknown, { it.value })
+}
+
+/**
+ * A value this kit doesn't know, from a later Hammer, reads as [Unknown].
+ */
+@Serializable(with = TimelineModeDto.Serializer::class)
+public enum class TimelineModeDto(
+	/**
+	 * What Hammer calls it; empty for [Unknown].
+	 */
+	public val `value`: String,
+) {
+	Manual("manual"),
+	Dated("dated"),
+	Unknown(""),
+	;
+
+	internal object Serializer : OperationEnumSerializer<TimelineModeDto>("hammer.ops.TimelineModeDto", TimelineModeDto.entries, TimelineModeDto.Unknown, { it.value })
+}
+
+@Serializable
+public data class TimelineSettings(
+	/**
+	 * The project's timelines: main first, then the others in the order they were made.
+	 */
+	public val timelines: List<TimelineDefDto> = emptyList(),
+	/**
+	 * Events whose timeline was deleted, such as one made offline before a sync; timeline.list orphaned lists them.
+	 */
+	public val orphaned: Int? = null,
 )
 
 @Serializable

@@ -9,9 +9,11 @@ import hammer.operationValue
 import kotlin.Boolean
 import kotlin.ByteArray
 import kotlin.Int
+import kotlin.Long
 import kotlin.String
 import kotlin.Suppress
 import kotlin.collections.List
+import kotlin.collections.Map
 import kotlinx.serialization.json.buildJsonObject
 
 /**
@@ -1042,11 +1044,29 @@ public object TagOperations {
 
 public object TimelineOperations {
 	/**
-	 * Add an event to a project's timeline, at the end unless an index is given.
+	 * The `timeline.def` operations.
+	 */
+	public val def: TimelineDefOperations = TimelineDefOperations
+
+	/**
+	 * The `timeline.settings` operations.
+	 */
+	public val settings: TimelineSettingsOperations = TimelineSettingsOperations
+
+	/**
+	 * Add a plain event to a project's timeline, main unless timeline names another, at the end unless an index is given. A dated timeline needs a start and takes no index. Entries and scenes are added with timeline.place.
 	 *
 	 * Needs `timeline.create` or `content:write` in the manifest's `[permissions]`.
-	 * @param date Free text, such as "Day 3" or "Spring, 1802".
-	 * @param index Its position in the timeline; left out, the end.
+	 * @param date Deprecated alias of label; label wins when both are given.
+	 * @param index Its position in the timeline; left out, the end. A dated timeline takes none.
+	 * @param title Its own title; left out, the content's first line is shown.
+	 * @param label Free-text "when" a manual timeline shows, such as "Day 3" or "Spring, 1802".
+	 * @param lane The lane it runs in.
+	 * @param milestone A turning point, marked across every lane.
+	 * @param start When it starts on the timeline's calendar, such as {"year": 97, "day": 210}; required on a dated timeline.
+	 * @param end When it ends, in the same form as start; needs a start.
+	 * @param references Scene and entry ids it refers to.
+	 * @param timeline The timeline's id, from timeline.settings.read; left out, or "main", the main timeline.
 	 */
 	public fun create(
 		project: String,
@@ -1054,16 +1074,32 @@ public object TimelineOperations {
 		date: String? = null,
 		tags: List<String>? = null,
 		index: Int? = null,
+		title: String? = null,
+		label: String? = null,
+		lane: String? = null,
+		milestone: Boolean? = null,
+		start: Map<String, Long>? = null,
+		end: Map<String, Long>? = null,
+		references: List<Int>? = null,
+		timeline: String? = null,
 	): TimelineEntry = operation("timeline.create", buildJsonObject {
 		put("project", operationValue(project))
 		put("content", operationValue(content))
 		if (date != null) put("date", operationValue(date))
 		if (tags != null) put("tags", operationValue(tags))
 		if (index != null) put("index", operationValue(index))
+		if (title != null) put("title", operationValue(title))
+		if (label != null) put("label", operationValue(label))
+		if (lane != null) put("lane", operationValue(lane))
+		if (milestone != null) put("milestone", operationValue(milestone))
+		if (start != null) put("start", operationValue(start))
+		if (end != null) put("end", operationValue(end))
+		if (references != null) put("references", operationValue(references))
+		if (timeline != null) put("timeline", operationValue(timeline))
 	})
 
 	/**
-	 * Delete a timeline event for good.
+	 * Delete a timeline event for good. Deleting a placement leaves its entry or scene alone.
 	 *
 	 * Needs `timeline.delete` (by name) in the manifest's `[permissions]`.
 	 */
@@ -1073,17 +1109,24 @@ public object TimelineOperations {
 	})
 
 	/**
-	 * A project's timeline events in order.
+	 * A timeline's events in display order: their manual order, or by start date on a dated timeline. The main timeline unless timeline names another; orphaned lists, by order, the events left on timelines deleted since, such as one made offline before a sync.
 	 *
 	 * Needs `timeline.list` or `content:read` in the manifest's `[permissions]`.
-	 * @param project The project's name, or its server project id.
+	 * @param timeline The timeline's id; left out, or "main", the main timeline.
+	 * @param orphaned Instead, the events whose timeline was deleted.
 	 */
-	public fun list(project: String): Timeline = operation("timeline.list", buildJsonObject {
+	public fun list(
+		project: String,
+		timeline: String? = null,
+		orphaned: Boolean? = null,
+	): Timeline = operation("timeline.list", buildJsonObject {
 		put("project", operationValue(project))
+		if (timeline != null) put("timeline", operationValue(timeline))
+		if (orphaned != null) put("orphaned", operationValue(orphaned))
 	})
 
 	/**
-	 * Move a timeline event to a position; index is its position after the move.
+	 * Move a timeline event to a position on its own timeline; index is its position after the move. A dated timeline is ordered by its dates, so nothing can be moved on it. timeline.set moves an event to another timeline.
 	 *
 	 * Needs `timeline.move` or `content:write` in the manifest's `[permissions]`.
 	 */
@@ -1098,6 +1141,38 @@ public object TimelineOperations {
 	})
 
 	/**
+	 * Place an encyclopedia entry of type event, or a scene, on a project's timeline, main unless timeline names another. Each can be placed once on each timeline, and its name and words come from it. A dated timeline needs a start.
+	 *
+	 * Needs `timeline.place` or `content:write` in the manifest's `[permissions]`.
+	 * @param kind entry or scene.
+	 * @param subject The entry or scene id.
+	 * @param start When it starts on the timeline's calendar, such as {"year": 97, "day": 210}; required on a dated timeline.
+	 * @param end When it ends, in the same form as start; needs a start.
+	 * @param lane The lane it runs in.
+	 * @param milestone A turning point, marked across every lane.
+	 * @param timeline The timeline's id, from timeline.settings.read; left out, or "main", the main timeline.
+	 */
+	public fun place(
+		project: String,
+		kind: TimelineKindDto,
+		subject: Int,
+		start: Map<String, Long>? = null,
+		end: Map<String, Long>? = null,
+		lane: String? = null,
+		milestone: Boolean? = null,
+		timeline: String? = null,
+	): TimelineEntry = operation("timeline.place", buildJsonObject {
+		put("project", operationValue(project))
+		put("kind", operationValue(kind))
+		put("subject", operationValue(subject))
+		if (start != null) put("start", operationValue(start))
+		if (end != null) put("end", operationValue(end))
+		if (lane != null) put("lane", operationValue(lane))
+		if (milestone != null) put("milestone", operationValue(milestone))
+		if (timeline != null) put("timeline", operationValue(timeline))
+	})
+
+	/**
 	 * One timeline event.
 	 *
 	 * Needs `timeline.read` or `content:read` in the manifest's `[permissions]`.
@@ -1108,10 +1183,53 @@ public object TimelineOperations {
 	})
 
 	/**
-	 * Replace a timeline event's text, and its date or tags when given. An empty date clears it.
+	 * Set single fields of any timeline event, or clear them by name, leaving the rest alone. A placement takes only label, lane, milestone, start, and end. This is how a placement is edited. A timeline other than the event's own moves it there, with start and end, when given, as its dates on that timeline's calendar; a dated timeline refuses the move unless the event's start fits or one is given.
+	 *
+	 * Needs `timeline.set` or `content:write` in the manifest's `[permissions]`.
+	 * @param id The timeline event.
+	 * @param title A plain event's own title.
+	 * @param label The free-text "when", shown on a manual timeline.
+	 * @param lane The lane it runs in.
+	 * @param milestone A turning point, marked across every lane.
+	 * @param start When it starts on the timeline's calendar, such as {"year": 97, "day": 210}.
+	 * @param end When it ends, in the same form as start.
+	 * @param clear Fields to clear, from title, label, lane, start, and end.
+	 * @param timeline Moves the event to this timeline, by id, "main" for the main one.
+	 */
+	public fun `set`(
+		project: String,
+		id: Int,
+		title: String? = null,
+		label: String? = null,
+		lane: String? = null,
+		milestone: Boolean? = null,
+		start: Map<String, Long>? = null,
+		end: Map<String, Long>? = null,
+		clear: List<String>? = null,
+		timeline: String? = null,
+	): TimelineEntry = operation("timeline.set", buildJsonObject {
+		put("project", operationValue(project))
+		put("id", operationValue(id))
+		if (title != null) put("title", operationValue(title))
+		if (label != null) put("label", operationValue(label))
+		if (lane != null) put("lane", operationValue(lane))
+		if (milestone != null) put("milestone", operationValue(milestone))
+		if (start != null) put("start", operationValue(start))
+		if (end != null) put("end", operationValue(end))
+		if (clear != null) put("clear", operationValue(clear))
+		if (timeline != null) put("timeline", operationValue(timeline))
+	})
+
+	/**
+	 * Replace a plain event's text, and any other field given; an empty value clears it. The text is always required, so every call replaces it. Edit a placement with timeline.set.
 	 *
 	 * Needs `timeline.update` or `content:write` in the manifest's `[permissions]`.
-	 * @param date Left out, unchanged; empty, cleared.
+	 * @param content The plain event's markdown; must be empty for a placement, which is edited with timeline.set.
+	 * @param date Deprecated alias of label; label wins when both are given.
+	 * @param label Free-text "when" a manual timeline shows.
+	 * @param start When it starts on the timeline's calendar, such as {"year": 97, "day": 210}.
+	 * @param end When it ends, in the same form as start.
+	 * @param references Scene and entry ids it refers to.
 	 */
 	public fun update(
 		project: String,
@@ -1119,11 +1237,100 @@ public object TimelineOperations {
 		content: String,
 		date: String? = null,
 		tags: List<String>? = null,
+		title: String? = null,
+		label: String? = null,
+		lane: String? = null,
+		milestone: Boolean? = null,
+		start: Map<String, Long>? = null,
+		end: Map<String, Long>? = null,
+		references: List<Int>? = null,
 	): TimelineEntry = operation("timeline.update", buildJsonObject {
 		put("project", operationValue(project))
 		put("id", operationValue(id))
 		put("content", operationValue(content))
 		if (date != null) put("date", operationValue(date))
 		if (tags != null) put("tags", operationValue(tags))
+		if (title != null) put("title", operationValue(title))
+		if (label != null) put("label", operationValue(label))
+		if (lane != null) put("lane", operationValue(lane))
+		if (milestone != null) put("milestone", operationValue(milestone))
+		if (start != null) put("start", operationValue(start))
+		if (end != null) put("end", operationValue(end))
+		if (references != null) put("references", operationValue(references))
+	})
+}
+
+public object TimelineDefOperations {
+	/**
+	 * Add a timeline to a project, manual unless mode says otherwise; a dated one needs a calendar. Its name is trimmed and no other timeline may have it, ignoring case. Returns it with its id, which the timeline option of other operations takes.
+	 *
+	 * Needs `timeline.def.create` or `content:write` in the manifest's `[permissions]`.
+	 * @param mode Left out, manual.
+	 * @param calendar Required for a dated timeline.
+	 * @param laneOrder Lanes in the order they are drawn.
+	 */
+	public fun create(
+		project: String,
+		name: String,
+		mode: TimelineModeDto? = null,
+		calendar: CalendarDto? = null,
+		laneOrder: List<String>? = null,
+	): TimelineDefDto = operation("timeline.def.create", buildJsonObject {
+		put("project", operationValue(project))
+		put("name", operationValue(name))
+		if (mode != null) put("mode", operationValue(mode))
+		if (calendar != null) put("calendar", operationValue(calendar))
+		if (laneOrder != null) put("laneOrder", operationValue(laneOrder))
+	})
+
+	/**
+	 * Delete a timeline and every event on it for good; entries and scenes placed there are left alone. The main timeline cannot be deleted.
+	 *
+	 * Needs `timeline.def.delete` (by name) in the manifest's `[permissions]`.
+	 * @param timeline The timeline's id; main cannot be deleted.
+	 */
+	public fun delete(project: String, timeline: String): TimelineDefDeleted = operation("timeline.def.delete", buildJsonObject {
+		put("project", operationValue(project))
+		put("timeline", operationValue(timeline))
+	})
+}
+
+public object TimelineSettingsOperations {
+	/**
+	 * A project's timelines, main first, each with its id, name, mode, calendar, and lane order, and how many events are left on timelines deleted since (see timeline.list orphaned).
+	 *
+	 * Needs `timeline.settings.read` or `content:read` in the manifest's `[permissions]`.
+	 * @param project The project's name, or its server project id.
+	 */
+	public fun read(project: String): TimelineSettings = operation("timeline.settings.read", buildJsonObject {
+		put("project", operationValue(project))
+	})
+
+	/**
+	 * Change one timeline's settings, main unless timeline names another; fields left out stay as they are, and name renames it. Switching to dated gives every event without a valid start one, spaced evenly in the current order; switching to manual keeps the date order as the manual order. A new calendar drops dates that do not fit it, keeping the start as the label of an event that has none.
+	 *
+	 * Needs `timeline.settings.write` or `content:write` in the manifest's `[permissions]`.
+	 * @param name A new name, which renames the timeline.
+	 * @param mode Switching to dated needs a calendar, here or already set.
+	 * @param laneOrder Lanes in the order they are drawn.
+	 * @param spacing Only when switching to dated; left out, events are one of the calendar's coarsest unit apart.
+	 * @param timeline The timeline's id; left out, or "main", the main timeline.
+	 */
+	public fun write(
+		project: String,
+		name: String? = null,
+		mode: TimelineModeDto? = null,
+		calendar: CalendarDto? = null,
+		laneOrder: List<String>? = null,
+		spacing: EvenSpacingDto? = null,
+		timeline: String? = null,
+	): TimelineSettings = operation("timeline.settings.write", buildJsonObject {
+		put("project", operationValue(project))
+		if (name != null) put("name", operationValue(name))
+		if (mode != null) put("mode", operationValue(mode))
+		if (calendar != null) put("calendar", operationValue(calendar))
+		if (laneOrder != null) put("laneOrder", operationValue(laneOrder))
+		if (spacing != null) put("spacing", operationValue(spacing))
+		if (timeline != null) put("timeline", operationValue(timeline))
 	})
 }
