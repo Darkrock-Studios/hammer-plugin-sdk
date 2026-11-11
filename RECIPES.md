@@ -48,6 +48,10 @@ A plugin is a `.hammerplugin` package: `manifest.toml`, the compiled module, and
    description = "Greets each scene."  # shown when installing and from Info; links are clickable
    # languages = ["en"]   # the project languages it works with, if it depends on them
 
+   # [kind]                 # a job it shares with other plugins; see A text check
+   # id = "grammar"
+   # label = "Grammar checker"
+
    [permissions]
    operations = ["scene.tree", "scene.read"]  # what it may call; see Calling Hammer
    ```
@@ -577,6 +581,19 @@ fun diagnose(): Int = diagnose(::findVery)
 "every" isn't a match. A fix shows as its replacement unless it has a label, which it needs when the
 replacement is empty. Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so search with `words()` and
 `String`'s own functions rather than a `Regex`.
+
+A plugin that does the same job as others, such as checking grammar, says so with a `[kind]` in its
+manifest. Where a project has two or more plugins of a kind for its
+language (from `languages`, or any language when that is left out), its settings offer a dropdown to
+pick one, which turns the others off for that project. Plugins of a kind agree on its `id`; `grammar`
+is the grammar checkers'. The label names the dropdown; a `label` under `[kind]` in a
+`locales/<tag>.toml` translates it.
+
+```toml
+[kind]
+id = "grammar"
+label = "Grammar checker"
+```
 
 ## A command-line command
 
