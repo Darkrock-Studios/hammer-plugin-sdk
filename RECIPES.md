@@ -583,11 +583,11 @@ replacement is empty. Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so 
 `String`'s own functions rather than a `Regex`.
 
 A plugin that does the same job as others, such as checking grammar, says so with a `[kind]` in its
-manifest. Where a project has two or more plugins of a kind for its
-language (from `languages`, or any language when that is left out), its settings offer a dropdown to
-pick one, which turns the others off for that project. Plugins of a kind agree on its `id`; `grammar`
-is the grammar checkers'. The label names the dropdown; a `label` under `[kind]` in a
-`locales/<tag>.toml` translates it.
+manifest. A project runs one plugin of each kind: the first installed that works in its language (from
+`languages`, or any language when that is left out) until the writer picks another, or none, from a
+dropdown in the project's settings. Plugins of a kind agree on its `id`; `grammar` is the grammar
+checkers'. The label names the dropdown; a `label` under `[kind]` in a `locales/<tag>.toml` translates
+it.
 
 ```toml
 [kind]
