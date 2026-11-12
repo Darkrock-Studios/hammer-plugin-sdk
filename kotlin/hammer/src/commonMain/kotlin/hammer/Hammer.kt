@@ -138,6 +138,7 @@ fun diagnoseReply(paragraphs: List<String>, diagnostics: List<Diagnostic>): Stri
 				put("start", utf8Offset(paragraph, issue.start))
 				put("end", utf8Offset(paragraph, issue.end))
 				put("message", issue.message)
+				if (issue.severity == Severity.Suggestion) put("severity", "suggestion")
 				put("fixes", buildJsonArray {
 					issue.fixes.forEach { fix ->
 						if (fix.label == null) {

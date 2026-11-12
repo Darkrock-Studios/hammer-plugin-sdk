@@ -575,7 +575,9 @@ fun diagnose(): Int = diagnose(::findVery)
 
 `words()` splits a paragraph into its words, with each one's `start` and `end`, so "very" inside
 "every" isn't a match. A fix shows as its replacement unless it has a label, which it needs when the
-replacement is empty. Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so search with `words()` and
+replacement is empty. `severity = Severity.Suggestion` underlines something the writer may want to
+change more quietly than a mistake, and `request.project` names the project, for operations such as
+`entry.list`. Kotlin/Wasm's `Regex` is slow in Hammer's interpreter, so search with `words()` and
 `String`'s own functions rather than a `Regex`.
 
 ## A command-line command

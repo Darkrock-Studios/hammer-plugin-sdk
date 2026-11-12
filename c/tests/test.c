@@ -4,6 +4,7 @@
 #include "hammer_action.h"
 #include "hammer_archive.h"
 #include "hammer_base64.h"
+#include "hammer_diagnose.h"
 #include "hammer_image.h"
 #include "hammer_text.h"
 #include "hammer_test.h"
@@ -17,6 +18,36 @@ static int wrote(HammerBuffer *out, const char *expected) {
   if (!same) fprintf(stderr, "  expected: %s\n  actual:   %s\n", expected, out->data);
   *out = (HammerBuffer){0};
   return same;
+}
+
+// A check that reports "It" as a mistake and "really" as a suggestion, remembering the project.
+static HammerText diagnosed_project;
+
+int hammer_diagnose_begin(const HammerDiagnoseRequest *request) {
+  diagnosed_project = request->project;
+  return 1;
+}
+
+void hammer_diagnose_paragraph(HammerText paragraph) {
+  if (paragraph.length < 9) return;
+  hammer_report_fix(0, 2, "Capital", "IT", 2);
+  hammer_suggest(3, 9, "Wordy", 0, 0);
+}
+
+static void reads_and_writes_diagnostics(void) {
+  const char *paragraph = "It really is.";
+  char *reply = hammer_test_run("{\"diagnostics\":\"grammar\",\"project\":\"Storm\",\"paragraphs\":[\"It really is.\"]}");
+  HAMMER_CHECK(text_is(diagnosed_project, "Storm"));
+  HAMMER_CHECK(strcmp(reply, "{\"diagnostics\":[{\"paragraph\":0,\"start\":0,\"end\":2,\"message\":\"Capital\",\"fixes\":[\"IT\"]},"
+                             "{\"paragraph\":0,\"start\":3,\"end\":9,\"message\":\"Wordy\",\"severity\":\"suggestion\",\"fixes\":[]}]}") == 0);
+  char *rendered = hammer_test_render(reply, paragraph, 0);
+  HAMMER_CHECK(strcmp(rendered, "[It]>IT; [really]~") == 0);
+  free(rendered);
+  free(reply);
+
+  reply = hammer_test_run("{\"diagnostics\":\"grammar\",\"paragraphs\":[]}");
+  HAMMER_CHECK(diagnosed_project.data == 0);
+  free(reply);
 }
 
 static void reads_requests(void) {
@@ -523,5 +554,6 @@ int main(void) {
   writes_archives();
   checks_archive_paths();
   splits_words();
+  reads_and_writes_diagnostics();
   return hammer_test_summary();
 }

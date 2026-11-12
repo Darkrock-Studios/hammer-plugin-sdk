@@ -366,6 +366,8 @@ class DiagnoseRequest(
 	override val settings: JsonObject = JsonObject(emptyMap()),
 	/** The UI's BCP 47 tag, such as `fr-CA`, for replying in the user's language; null when unknown. */
 	val locale: String? = null,
+	/** The name of the project the text belongs to, for operations such as `entry.list`. */
+	val project: String = "",
 ) : WithSettings
 
 /**
@@ -378,7 +380,16 @@ class Diagnostic(
 	val end: Int,
 	val message: String,
 	val fixes: List<Fix> = emptyList(),
+	val severity: Severity = Severity.Error,
 )
+
+enum class Severity {
+	/** A mistake: a wavy underline. */
+	Error,
+
+	/** Something the writer may want to change: a quieter, dotted underline. */
+	Suggestion,
+}
 
 /** Text to put in place of a [Diagnostic]'s range, shown as [label] where the text alone would not say what it does. */
 class Fix(val replacement: String, val label: String? = null)
