@@ -67,7 +67,7 @@ Kotlin version it was tested with, since Hammer is tested against one Kotlin/Was
 ## Rust: crates.io
 
 - **The crate** is published as `hammer-plugin-kit`, matching the Kotlin artifact (`hammer` is taken).
-  Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.7"` and writes
+  Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.8"` and writes
   `use hammer::…`. The `getrandom` feature stays optional. docs.rs builds its documentation.
 - **The build.** A Rust plugin needs the `wasm32-unknown-unknown` target, sometimes `finish.py` and
   Wizer, and then packing. At first these ship in the GitHub release (below). Later, a
