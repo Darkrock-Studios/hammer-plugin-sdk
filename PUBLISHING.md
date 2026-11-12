@@ -8,7 +8,7 @@ kit for their language.
 
 | Language | What ships | Name | Version |
 | --- | --- | --- | --- |
-| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.7.0, in `kotlin/versions.properties` |
+| Kotlin | The kit, a Kotlin Multiplatform library (`jvm` and `wasmWasi`), on Maven Central | `com.darkrockstudios.hammer:hammer-plugin-kit` | 0.8.0, in `kotlin/versions.properties` |
 | Kotlin | The Gradle plugin, on Maven Central, which adds the kit at its own version | `com.darkrockstudios.hammer.plugin` (artifact `com.darkrockstudios.hammer:hammer-gradle-plugin`) | The kit's |
 | Rust | The kit crate, on crates.io, whose library is `hammer` | `hammer-plugin-kit` | The SDK's, in `rust/hammer/Cargo.toml` |
 | Rust | `rust/tools/finish.py` | None | None |
@@ -57,7 +57,7 @@ an author adds `mavenCentral()` to `pluginManagement`'s repositories and writes 
 
 ```kotlin
 plugins {
-	id("com.darkrockstudios.hammer.plugin") version "0.7.0"
+	id("com.darkrockstudios.hammer.plugin") version "0.8.0"
 }
 ```
 

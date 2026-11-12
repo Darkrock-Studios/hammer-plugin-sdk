@@ -9,7 +9,7 @@ for each of Hammer's operations (`hammer::ops`), and the types for exports, acti
 crate-type = ["cdylib"]
 
 [dependencies]
-hammer-plugin-kit = "0.7"
+hammer-plugin-kit = "0.8"
 ```
 
 ```rust
@@ -24,6 +24,9 @@ for image_id in hammer::images::find_ids(&scene.markdown) {
 
 `hammer::images` reads the `hammer://image/<id>` references Hammer writes for a project's images, and
 `hammer::export::Archive` writes the reply of an exporter whose files Hammer zips.
+
+`hammer::server` sends a request to a service on the user's own sync server, such as `languagetool`, as
+the signed-in user, for a plugin whose manifest names it under `permissions.hammerServer`.
 
 Build for `wasm32-unknown-unknown`. The [Rust template](https://github.com/Darkrock-Studios/hammer-plugin-rust)
 is a working plugin to start from, and the
