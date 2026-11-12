@@ -1,5 +1,5 @@
 //! HTTP requests, through Extism's `http_request`. Hammer allows only the hosts the manifest names
-//! under `permissions.http`, which the user approves at install; a request to any other fails.
+//! under `permissions.http`, which the user approves at install; a request to any other ends the call.
 
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -21,8 +21,9 @@ impl Response {
     }
 }
 
-/// Sends a request and waits for its response. A response of any status is Ok; Err means there was
-/// none, such as for a host the manifest does not name or a network that is down.
+/// Sends a request and waits for its response. A response of any status is Ok. A request Hammer
+/// refuses, such as to a host the manifest does not name, or one with no response, such as on a
+/// network that is down, ends the call with Hammer's error rather than returning.
 pub fn request(method: &str, url: &str, headers: &[(&str, &str)], body: Option<&[u8]>) -> crate::Result<Response> {
     #[derive(Serialize)]
     struct Request<'a> {
