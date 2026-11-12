@@ -650,6 +650,36 @@ page: `ActionReply(errors = mapOf("" to e.message.orEmpty()))`. The manifest's
 The plugin's cache, `cacheGet` and `cacheSet`, keeps bytes between calls and runs, such as results
 worth not working out again; Hammer may drop any of it at any time.
 
+## Your sync server's services
+
+A user's sync server may offer services, such as `languagetool` for grammar checks. Hammer sends a
+plugin's requests to them as the signed-in user, so the plugin never holds their credentials, and only
+to the services the manifest names:
+
+```toml
+[permissions]
+hammerServer = ["languagetool"]
+```
+
+`hammer.languagetool` has typed functions for LanguageTool. A match's `offset` and `length` index the
+text checked, as a Kotlin String does:
+
+```kotlin
+fun grammar(request: DiagnoseRequest): List<Diagnostic> = request.paragraphs.flatMapIndexed { paragraph, text ->
+	LanguageTool.check(CheckRequest(text, language = request.language ?: "auto")).matches.map {
+		Diagnostic(paragraph, it.offset, it.end, it.message, it.replacements.map { fix -> Fix(fix.value) })
+	}
+}
+```
+
+A check per paragraph keeps the example short; a real one sends paragraphs together and caches what
+comes back, as the LanguageTool plugin in hammer-plugins does.
+
+A failure throws `ServerException`, whose `kind` says why: `NotSignedIn` when the user has no sync
+account, `Unavailable` when their server doesn't offer the service, `RateLimited` past its limit of
+requests, and others. `serverRequest(service, method, path, headers, body)` sends any request and
+returns its status and body.
+
 ## Testing
 
 Logic in `commonMain` runs in JVM tests, with `FakeHammerHost` answering operations and recording
@@ -658,6 +688,9 @@ progress:
 ```kotlin
 host = FakeHammerHost(mapOf("scene.read" to { _ -> buildJsonObject { put("markdown", "Rain fell hard.") } }))
 ```
+
+`FakeHammerHost(services = mapOf("languagetool" to { call -> ServerResponse(200, reply) }))` answers
+requests to the sync server's services and records them in `serviceCalls`.
 
 `ActionDriver` runs an action as Hammer does, over as many calls as a test needs. `open()` shows the
 manifest's fields for the action, read from the plugin's `manifest.toml`, or calls at once when it has

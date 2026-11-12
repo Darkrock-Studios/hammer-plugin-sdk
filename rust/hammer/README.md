@@ -27,6 +27,7 @@ for image_id in hammer::images::find_ids(&scene.markdown) {
 
 `hammer::server` sends a request to a service on the user's own sync server, such as `languagetool`, as
 the signed-in user, for a plugin whose manifest names it under `permissions.hammerServer`.
+`hammer::server::languagetool` has typed `check` and `languages` for that service.
 
 Build for `wasm32-unknown-unknown`. The [Rust template](https://github.com/Darkrock-Studios/hammer-plugin-rust)
 is a working plugin to start from, and the

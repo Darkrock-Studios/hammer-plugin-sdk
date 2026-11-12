@@ -1,6 +1,9 @@
 //! Requests to a service on the user's own Hammer sync server, such as `languagetool`, through
 //! `hammer_server_request`. Hammer sends them as the signed-in user, so the plugin never holds their
 //! credentials, and only to the services the manifest names under `permissions.hammerServer`.
+//! [languagetool] has typed functions for the `languagetool` service.
+
+pub mod languagetool;
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -20,10 +23,39 @@ impl Response {
     pub fn is_success(&self) -> bool {
         (200..300).contains(&self.status)
     }
+
+    /// What a status other than success means, with the message the sync server gave for the user
+    /// when it gave one; None on success.
+    pub fn error(&self) -> Option<ServerError> {
+        if self.is_success() {
+            return None;
+        }
+        let kind = match self.status {
+            429 => ErrorKind::RateLimited,
+            400..500 => ErrorKind::Rejected,
+            _ => ErrorKind::ServiceFailed,
+        };
+        let message = display_message(&self.body).unwrap_or_else(|| {
+            let detail: String = self.body.chars().take(200).collect();
+            match detail.trim().is_empty() {
+                true => format!("The service replied {}", self.status),
+                false => format!("The service replied {}: {}", self.status, detail.trim()),
+            }
+        });
+        Some(ServerError { kind, message })
+    }
 }
 
-/// Why a request got no response from the service.
+/// The sync server's own refusals carry a message meant for the user.
+fn display_message(body: &str) -> Option<String> {
+    let reply: serde_json::Value = serde_json::from_str(body).ok()?;
+    reply.get("displayMessage")?.as_str().filter(|it| !it.is_empty()).map(str::to_owned)
+}
+
+/// Why a request failed: the first five are from Hammer, before any reply; the rest are what
+/// [Response::error] makes of a reply's status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ErrorKind {
     /// No sync account in this workspace, or its session has ended.
     NotSignedIn,
@@ -33,8 +65,14 @@ pub enum ErrorKind {
     Network,
     /// The manifest doesn't name the service.
     NotPermitted,
-    /// A refused method or path, or a reply that isn't text.
+    /// A refused method or path, or a reply that isn't text, or isn't what the service should send.
     Invalid,
+    /// Too many requests: 429. The sync server allows more after a minute.
+    RateLimited,
+    /// The service refused the request, such as one too large or in a language it doesn't check: 4xx.
+    Rejected,
+    /// The service failed, or the sync server couldn't reach it: 5xx.
+    ServiceFailed,
 }
 
 #[derive(Debug)]
@@ -139,6 +177,18 @@ mod tests {
         let error = parse_reply(br#"{"error":"not_signed_in","message":"Sign in"}"#).err().unwrap();
         assert_eq!(error.kind, ErrorKind::NotSignedIn);
         assert_eq!(error.to_string(), "Sign in");
+    }
+
+    #[test]
+    fn a_status_names_its_error_with_the_servers_message() {
+        let response = |status, body: &str| Response { status, body: body.into() };
+        assert!(response(200, "").error().is_none());
+        assert_eq!(response(429, "").error().unwrap().kind, ErrorKind::RateLimited);
+        let refused = response(413, r#"{"error":"api_services_error_toolarge","displayMessage":"Too large"}"#).error().unwrap();
+        assert_eq!((refused.kind, refused.message.as_str()), (ErrorKind::Rejected, "Too large"));
+        let failed = response(502, "").error().unwrap();
+        assert_eq!((failed.kind, failed.message.as_str()), (ErrorKind::ServiceFailed, "The service replied 502"));
+        assert_eq!(response(400, "Bad language").error().unwrap().message, "The service replied 400: Bad language");
     }
 
     #[test]
