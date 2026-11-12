@@ -86,6 +86,16 @@ private object ExtismHost : HammerHost {
 		return fromKernel(value).also { free(value) }
 	}
 
+	override fun serverRequest(request: String, body: ByteArray?): String? {
+		val requestHandle = toKernel(request.encodeToByteArray())
+		val bodyHandle = if (body == null || body.isEmpty()) 0L else toKernel(body)
+		val reply = hammerServerRequest(requestHandle, bodyHandle)
+		free(requestHandle)
+		if (bodyHandle != 0L) free(bodyHandle)
+		if (reply == 0L) return null
+		return fromKernelText(reply).also { free(reply) }
+	}
+
 	override fun progress(report: String) {
 		val handle = toKernel(report.encodeToByteArray())
 		hammerProgress(handle)
@@ -165,6 +175,9 @@ private external fun hammerCacheGet(key: Long): Long
 
 @WasmImport("extism:host/user", "hammer_cache_set")
 private external fun hammerCacheSet(key: Long, value: Long)
+
+@WasmImport("extism:host/user", "hammer_server_request")
+private external fun hammerServerRequest(request: Long, body: Long): Long
 
 private fun toKernel(bytes: ByteArray): Long {
 	val offset = alloc(bytes.size.toLong())

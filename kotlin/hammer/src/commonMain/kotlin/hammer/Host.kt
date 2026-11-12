@@ -20,6 +20,12 @@ interface HammerHost {
 
 	/** A file from the package's `resources/`, or null when there is none by that name, or it is empty. */
 	fun resource(name: String): ByteArray? = null
+
+	/**
+	 * Hammer's reply JSON to a request to a service on the sync server, `{"service", "method", "path",
+	 * "headers"}`: `{"status", "body"}` or `{"error", "message"}`, or null for no reply.
+	 */
+	fun serverRequest(request: String, body: ByteArray?): String? = null
 }
 
 enum class LogLevel { Info, Warn, Error }

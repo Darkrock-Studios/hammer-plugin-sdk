@@ -27,6 +27,7 @@ pub mod export;
 pub mod http;
 pub mod images;
 pub mod ops;
+pub mod server;
 #[cfg(test)]
 mod ops_tests;
 mod word_classes;
