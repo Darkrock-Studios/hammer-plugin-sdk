@@ -17,7 +17,6 @@
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::Once;
 
 pub mod action;
@@ -348,28 +347,6 @@ mod word_class {
                     })
                     .map_or(OTHER, |i| crate::word_classes::WORD_CLASSES[i].2)
             }
-        }
-    }
-}
-
-/// An allocator that zeroes memory as it is freed. A module pre-initialized with Wizer keeps only its
-/// memory's non-zero bytes, so with this it carries what start-up kept, not what it threw away.
-///
-/// ```ignore
-/// #[global_allocator]
-/// static ALLOCATOR: hammer::ZeroingAllocator = hammer::ZeroingAllocator;
-/// ```
-pub struct ZeroingAllocator;
-
-unsafe impl GlobalAlloc for ZeroingAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe {
-            ptr.write_bytes(0, layout.size());
-            System.dealloc(ptr, layout)
         }
     }
 }

@@ -9,7 +9,7 @@ for each of Hammer's operations (`hammer::ops`), and the types for exports, acti
 crate-type = ["cdylib"]
 
 [dependencies]
-hammer-plugin-kit = "0.8"
+hammer-plugin-kit = "0.9"
 ```
 
 ```rust
