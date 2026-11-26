@@ -70,7 +70,7 @@ Kotlin version it was tested with, since Hammer is tested against one Kotlin/Was
   Its library is named `hammer`, so an author depends on `hammer-plugin-kit = "0.9"` and writes
   `use hammer::…`. The `getrandom` feature stays optional. docs.rs builds its documentation.
 - **The build.** A Rust plugin needs the `wasm32-unknown-unknown` target, sometimes `finish.py`, and
-  then packing. At first these ship in the GitHub release (below). Later, a
+  then packing. At first `finish.py` and `tools/package.sh` ship in the GitHub release (below). Later, a
   `cargo-hammer` subcommand (`cargo install cargo-hammer`, then `cargo hammer package`) replaces them,
   building, finishing, and packing in one step, the way the Gradle plugin does for Kotlin.
 
